@@ -7,6 +7,12 @@ const SUPABASE_URL = "https://cnauqnqntbywsjoyuvur.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuYXVxbnFudGJ5d3Nqb3l1dnVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDc5NTEsImV4cCI6MjA5NDc4Mzk1MX0.IPxbGJIFhoc_CMJXsbxPMqHc9oPDEQxYXib4ogg2nvM";
 const ADMIN_PIN = "vm2026";
 
+// Enkel hash for PIN (ikke kryptografisk sikker, men nok for en intern konkurranse)
+async function hashPin(pin) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pin + "vm2026salt"));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,16);
+}
+
 // Deadline: 11. juni 2026 kl 20:00 norsk tid (18:00 UTC)
 const DEADLINE = new Date("2026-06-11T18:00:00Z");
 
@@ -269,102 +275,254 @@ function DeadlineBanner() {
 }
 
 // ══════════════════════════════════════════════════
-//  📋 REGISTRER
+//  📋 REGISTRER / LOGG INN
 // ══════════════════════════════════════════════════
 function RegisterView({ onRegister }) {
+  const [mode, setMode] = useState("choose"); // choose | login | register | editing | done
   const [name, setName] = useState("");
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
   const [tips, setTips] = useState({});
   const [bonus, setBonus] = useState({});
-  const [step, setStep] = useState("info");
+  const [step, setStep] = useState("matches"); // matches | bonus
   const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
   const [error, setError] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
   const locked = new Date() >= DEADLINE;
 
-  const setTip = (id, val) => setTips(t=>({...t,[id]:val}));
+  const setTip = (id, val) => setTips(t => ({ ...t, [id]: val }));
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return;
+  // Auto-lagre til Supabase når tips endres (debounced)
+  useEffect(() => {
+    if (!currentUser) return;
+    const timer = setTimeout(async () => {
+      setAutoSaving(true);
+      try {
+        await sb.upsert("participants", [{ ...currentUser, tips, bonus }]);
+      } catch(e) { console.error(e); }
+      finally { setAutoSaving(false); }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [tips, bonus, currentUser]);
+
+  const handleRegister = async () => {
+    if (!name.trim() || !pin || pin.length < 4) return;
+    if (pin !== pinConfirm) { setError("PIN-kodene er ikke like"); return; }
     setSaving(true); setError("");
     try {
-      await sb.upsertByName("participants",[{name:name.trim(),tips,bonus}]);
+      const pinHash = await hashPin(pin);
+      // Sjekk om navn allerede er tatt
+      const existing = await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(name.trim())}&select=name`);
+      if (existing.length > 0) { setError("Dette navnet er allerede registrert. Logg inn i stedet."); setSaving(false); return; }
+      const user = { name: name.trim(), pin_hash: pinHash, tips: {}, bonus: {} };
+      await sb.upsert("participants", [user]);
+      setCurrentUser(user);
+      setTips({});
+      setBonus({});
       onRegister();
-      setStep("done");
-    } catch(e) { setError("Feil ved lagring: "+e.message); }
+      setMode("editing");
+    } catch(e) { setError("Feil: " + e.message); }
     finally { setSaving(false); }
   };
 
-  if (locked && step!=="done") return (
+  const handleLogin = async () => {
+    if (!name.trim() || !pin) return;
+    setSaving(true); setError("");
+    try {
+      const pinHash = await hashPin(pin);
+      const res = await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(name.trim())}&select=*`);
+      if (res.length === 0) { setError("Finner ikke denne brukeren. Registrer deg i stedet."); setSaving(false); return; }
+      const user = res[0];
+      if (user.pin_hash !== pinHash) { setError("Feil PIN-kode."); setSaving(false); return; }
+      setCurrentUser(user);
+      setTips(user.tips || {});
+      setBonus(user.bonus || {});
+      onRegister();
+      setMode("editing");
+    } catch(e) { setError("Feil: " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleFinalSubmit = async () => {
+    setSaving(true);
+    try {
+      await sb.upsert("participants", [{ ...currentUser, tips, bonus }]);
+      setMode("done");
+      onRegister();
+    } catch(e) { setError("Feil ved lagring: " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  if (locked && mode !== "done" && mode !== "editing") return (
     <Card title="Registrering stengt" icon="🔒">
-      <p style={{color:"#aaa"}}>VM startet 11. juni — det er ikke lenger mulig å registrere eller endre tips.</p>
+      <p style={{color:"#aaa"}}>VM startet 11. juni — tipping er ikke lenger mulig.</p>
     </Card>
   );
 
-  if (step==="info") return (
-    <Card title="Registrer deg" icon="📋">
+  // VELG MODUS
+  if (mode === "choose") return (
+    <Card title="Min kupong" icon="📋">
       <DeadlineBanner />
-      <p style={{color:"#aaa",marginBottom:20}}>Delta i VM-tippekonkurransen for Vinmonopolet Økonomi!</p>
-      <label style={labelStyle}>Ditt navn</label>
-      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Fornavn Etternavn"
-        style={inputStyle} onKeyDown={e=>e.key==="Enter"&&name.trim()&&setStep("matches")} />
-      <p style={{color:"#777",fontSize:12,marginBottom:16}}>
-        Allerede registrert? Skriv nøyaktig samme navn for å oppdatere tipsene dine.
-      </p>
-      <Btn disabled={!name.trim()} onClick={()=>setStep("matches")}>Neste: Tippe kamper →</Btn>
-    </Card>
-  );
-
-  if (step==="matches") {
-    let lastGroup=null, lastPhase=null;
-    return (
-      <Card title={`⚽ Tippe kamper — ${name}`}>
-        <p style={{color:"#aaa",fontSize:12,marginBottom:10}}>
-          3p = eksakt resultat · 1p = riktig utfall · 0p = feil
-        </p>
-        <div style={{maxHeight:"58vh",overflowY:"auto",paddingRight:4}}>
-          {ALL_MATCHES.map(m=>{
-            const showG=m.phase==="group"&&m.group!==lastGroup;
-            const showP=m.phase!=="group"&&m.phase!==lastPhase;
-            if(showG) lastGroup=m.group;
-            if(showP){lastPhase=m.phase;lastGroup=null;}
-            return (
-              <div key={m.id}>
-                {showG&&<GroupHeader group={m.group}/>}
-                {showP&&<PhaseHeader phase={m.phase}/>}
-                <MatchRow match={m} tip={tips[m.id]} onChange={v=>setTip(m.id,v)}/>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{display:"flex",gap:8,marginTop:16}}>
-          <Btn secondary onClick={()=>setStep("info")}>← Tilbake</Btn>
-          <Btn onClick={()=>setStep("bonus")}>Neste: Bonusspørsmål →</Btn>
-        </div>
-      </Card>
-    );
-  }
-
-  if (step==="bonus") return (
-    <Card title="🎯 Bonusspørsmål">
-      <p style={{color:"#aaa",fontSize:13,marginBottom:20}}>5 poeng per riktig svar.</p>
-      {BONUS_QUESTIONS.map(q=>(
-        <div key={q.id}>
-          <label style={labelStyle}>{q.text}</label>
-          <input type={q.type??"text"} value={bonus[q.id]??""} style={inputStyle}
-            onChange={e=>setBonus(b=>({...b,[q.id]:e.target.value}))}/>
-        </div>
-      ))}
-      {error&&<p style={{color:"#e07070",fontSize:13}}>{error}</p>}
-      <div style={{display:"flex",gap:8}}>
-        <Btn secondary onClick={()=>setStep("matches")}>← Tilbake</Btn>
-        <Btn onClick={handleSubmit} disabled={saving}>{saving?"Lagrer...":"✅ Lever kupong!"}</Btn>
+      <p style={{color:"#aaa", marginBottom:24}}>Har du deltatt før, eller er du ny?</p>
+      <div style={{display:"flex", gap:12, flexDirection:"column"}}>
+        <button onClick={()=>setMode("login")} style={{
+          padding:"16px", borderRadius:10, border:"1px solid rgba(41,100,89,0.5)",
+          background:"rgba(41,100,89,0.15)", color:"#fff", cursor:"pointer",
+          fontFamily:"'Georgia',serif", fontSize:15, fontWeight:700, textAlign:"left"
+        }}>
+          🔑 Logg inn — jeg har registrert meg tidligere
+          <div style={{fontSize:12, color:"#aaa", fontWeight:400, marginTop:4}}>
+            Fortsett der du slapp, eller endre tipsene dine
+          </div>
+        </button>
+        <button onClick={()=>setMode("register")} style={{
+          padding:"16px", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)",
+          background:"rgba(255,255,255,0.04)", color:"#fff", cursor:"pointer",
+          fontFamily:"'Georgia',serif", fontSize:15, fontWeight:700, textAlign:"left"
+        }}>
+          ✨ Registrer meg — jeg er ny
+          <div style={{fontSize:12, color:"#aaa", fontWeight:400, marginTop:4}}>
+            Opprett bruker med navn og PIN-kode
+          </div>
+        </button>
       </div>
     </Card>
   );
 
+  // LOGG INN
+  if (mode === "login") return (
+    <Card title="Logg inn" icon="🔑">
+      <label style={labelStyle}>Ditt navn</label>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Fornavn Etternavn" style={inputStyle} />
+      <label style={labelStyle}>Din PIN-kode</label>
+      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="4+ siffer"
+        style={inputStyle} onKeyDown={e=>e.key==="Enter"&&handleLogin()} />
+      {error && <p style={{color:"#e07070", fontSize:13, marginBottom:12}}>{error}</p>}
+      <div style={{display:"flex", gap:8}}>
+        <Btn secondary onClick={()=>{setMode("choose");setError("");}}>← Tilbake</Btn>
+        <Btn onClick={handleLogin} disabled={saving||!name.trim()||!pin}>{saving?"Logger inn...":"Logg inn →"}</Btn>
+      </div>
+      <p style={{color:"#666", fontSize:12, marginTop:12}}>
+        Ikke registrert? <span style={{color:VMP_MINT, cursor:"pointer"}} onClick={()=>{setMode("register");setError("");}}>Registrer deg her</span>
+      </p>
+    </Card>
+  );
+
+  // REGISTRER NY BRUKER
+  if (mode === "register") return (
+    <Card title="Registrer deg" icon="✨">
+      <DeadlineBanner />
+      <label style={labelStyle}>Ditt navn</label>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Fornavn Etternavn" style={inputStyle} />
+      <label style={labelStyle}>Velg PIN-kode (min. 4 tegn)</label>
+      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="F.eks. 1234"
+        style={inputStyle} />
+      <label style={labelStyle}>Bekreft PIN-kode</label>
+      <input type="password" value={pinConfirm} onChange={e=>setPinConfirm(e.target.value)} placeholder="Skriv PIN igjen"
+        style={inputStyle} onKeyDown={e=>e.key==="Enter"&&handleRegister()} />
+      {error && <p style={{color:"#e07070", fontSize:13, marginBottom:12}}>{error}</p>}
+      <div style={{display:"flex", gap:8}}>
+        <Btn secondary onClick={()=>{setMode("choose");setError("");}}>← Tilbake</Btn>
+        <Btn onClick={handleRegister} disabled={saving||!name.trim()||pin.length<4||pin!==pinConfirm}>
+          {saving?"Oppretter...":"Opprett bruker →"}
+        </Btn>
+      </div>
+      <p style={{color:"#666", fontSize:12, marginTop:12}}>
+        Allerede registrert? <span style={{color:VMP_MINT, cursor:"pointer"}} onClick={()=>{setMode("login");setError("");}}>Logg inn her</span>
+      </p>
+    </Card>
+  );
+
+  // REDIGERE TIPS
+  if (mode === "editing") {
+    let lastGroup=null, lastPhase=null;
+    const filledMatches = ALL_MATCHES.filter(m => tips[m.id]?.home !== "" && tips[m.id]?.home !== undefined).length;
+    const progress = Math.round((filledMatches / ALL_MATCHES.length) * 100);
+
+    return (
+      <div style={{maxWidth:720, margin:"0 auto"}}>
+        {/* Header med bruker og auto-save */}
+        <div style={{
+          background:"rgba(41,100,89,0.15)", border:"1px solid rgba(41,100,89,0.3)",
+          borderRadius:12, padding:"12px 16px", marginBottom:16,
+          display:"flex", justifyContent:"space-between", alignItems:"center"
+        }}>
+          <div>
+            <div style={{fontWeight:700, fontSize:16}}>{currentUser?.name}</div>
+            <div style={{fontSize:12, color:"#888"}}>
+              {filledMatches} av {ALL_MATCHES.length} kamper fylt ut ({progress}%)
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            {autoSaving
+              ? <span style={{fontSize:12, color:VMP_MINT}}>💾 Lagrer...</span>
+              : <span style={{fontSize:12, color:"#555"}}>✓ Lagret</span>
+            }
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex", gap:8, marginBottom:16}}>
+          <Btn secondary={step!=="matches"} onClick={()=>setStep("matches")}>⚽ Kamper</Btn>
+          <Btn secondary={step!=="bonus"} onClick={()=>setStep("bonus")}>🎯 Bonusspørsmål</Btn>
+        </div>
+
+        {step === "matches" && (
+          <Card title="">
+            <p style={{color:"#aaa", fontSize:12, marginBottom:10}}>
+              3p = eksakt · 1p = riktig utfall · Tips lagres automatisk
+            </p>
+            <div style={{maxHeight:"60vh", overflowY:"auto", paddingRight:4}}>
+              {ALL_MATCHES.map(m => {
+                const showG = m.phase==="group" && m.group!==lastGroup;
+                const showP = m.phase!=="group" && m.phase!==lastPhase;
+                if(showG) lastGroup=m.group;
+                if(showP){lastPhase=m.phase;lastGroup=null;}
+                return (
+                  <div key={m.id}>
+                    {showG && <GroupHeader group={m.group}/>}
+                    {showP && <PhaseHeader phase={m.phase}/>}
+                    <MatchRow match={m} tip={tips[m.id]} onChange={v=>setTip(m.id,v)}/>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{marginTop:16}}>
+              <Btn onClick={()=>setStep("bonus")}>Neste: Bonusspørsmål →</Btn>
+            </div>
+          </Card>
+        )}
+
+        {step === "bonus" && (
+          <Card title="🎯 Bonusspørsmål">
+            <p style={{color:"#aaa", fontSize:13, marginBottom:20}}>5 poeng per riktig svar. Lagres automatisk.</p>
+            {BONUS_QUESTIONS.map(q=>(
+              <div key={q.id}>
+                <label style={labelStyle}>{q.text}</label>
+                <input type={q.type??"text"} value={bonus[q.id]??""} style={inputStyle}
+                  onChange={e=>setBonus(b=>({...b,[q.id]:e.target.value}))}/>
+              </div>
+            ))}
+            {error && <p style={{color:"#e07070", fontSize:13}}>{error}</p>}
+            <div style={{display:"flex", gap:8}}>
+              <Btn secondary onClick={()=>setStep("matches")}>← Tilbake til kamper</Btn>
+              <Btn onClick={handleFinalSubmit} disabled={saving}>
+                {saving ? "Lagrer..." : "✅ Ferdig — lever kupong!"}
+              </Btn>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  // FERDIG
   return (
     <Card title="Kupong innlevert!" icon="🎉">
-      <p style={{color:VMP_MINT,fontSize:18,marginBottom:8}}>Takk, <strong>{name}</strong>!</p>
-      <p style={{color:"#aaa"}}>Din kupong er registrert. Lykke til — kampene starter 11. juni!</p>
+      <p style={{color:VMP_MINT, fontSize:18, marginBottom:8}}>Takk, <strong>{currentUser?.name}</strong>!</p>
+      <p style={{color:"#aaa", marginBottom:16}}>Du kan logge inn igjen når som helst for å endre tipsene dine — frem til 11. juni.</p>
+      <Btn secondary onClick={()=>setMode("editing")}>✏️ Endre tips</Btn>
     </Card>
   );
 }
@@ -688,3 +846,4 @@ export default function App() {
     </div>
   );
 }
+
