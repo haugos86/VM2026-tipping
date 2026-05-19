@@ -641,7 +641,7 @@ function AdminView({ results, setResults, bonusResults, setBonusResults, partici
       <input type="password" value={pin} onChange={e=>setPin(e.target.value)} style={inputStyle}
         placeholder="Skriv PIN..." onKeyDown={e=>e.key==="Enter"&&(pin===ADMIN_PIN?setAuthed(true):alert("Feil PIN"))}/>
       <Btn onClick={()=>pin===ADMIN_PIN?setAuthed(true):alert("Feil PIN")}>Logg inn</Btn>
-      <p style={{color:"#555",fontSize:12,marginTop:8}}>Standard PIN: vm2026</p>
+    
     </Card>
   );
 
