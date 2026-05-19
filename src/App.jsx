@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 //  🔧 KONFIGURASJON — fyll inn dine Supabase-verdier
 // ══════════════════════════════════════════════════
 const SUPABASE_URL = "https://cnauqnqntbywsjoyuvur.supabase.co";
-const SUPABASE_ANON_KEY = "LIMPINNDINANOKKEYHER";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuYXVxbnFudGJ5d3Nqb3l1dnVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDc5NTEsImV4cCI6MjA5NDc4Mzk1MX0.IPxbGJIFhoc_CMJXsbxPMqHc9oPDEQxYXib4ogg2nvM";
 const ADMIN_PIN = "vm2026";
 
 // Deadline: 11. juni 2026 kl 20:00 norsk tid (18:00 UTC)
