@@ -26,21 +26,45 @@ const GROUPS = {
   L:["England","Kroatia","Panama","Ghana"],
 };
 
-const FLAG={
-  "Mexico":"🇲🇽","Sør-Korea":"🇰🇷","Sør-Afrika":"🇿🇦","Tsjekkia":"🇨🇿",
-  "Canada":"🇨🇦","Sveits":"🇨🇭","Qatar":"🇶🇦","Bosnia-Hercegovina":"🇧🇦",
-  "Brasil":"🇧🇷","Marokko":"🇲🇦","Skottland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Haiti":"🇭🇹",
-  "USA":"🇺🇸","Australia":"🇦🇺","Paraguay":"🇵🇾","Tyrkia":"🇹🇷",
-  "Tyskland":"🇩🇪","Ecuador":"🇪🇨","Elfenbenskysten":"🇨🇮","Curaçao":"🇨🇼",
-  "Nederland":"🇳🇱","Japan":"🇯🇵","Tunisia":"🇹🇳","Sverige":"🇸🇪",
-  "Belgia":"🇧🇪","Iran":"🇮🇷","Egypt":"🇪🇬","New Zealand":"🇳🇿",
-  "Spania":"🇪🇸","Uruguay":"🇺🇾","Saudi-Arabia":"🇸🇦","Kapp Verde":"🇨🇻",
-  "Frankrike":"🇫🇷","Senegal":"🇸🇳","Norge":"🇳🇴","Irak":"🇮🇶",
-  "Argentina":"🇦🇷","Østerrike":"🇦🇹","Algerie":"🇩🇿","Jordan":"🇯🇴",
-  "Portugal":"🇵🇹","Colombia":"🇨🇴","Usbekistan":"🇺🇿","DR Kongo":"🇨🇩",
-  "England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Kroatia":"🇭🇷","Panama":"🇵🇦","Ghana":"🇬🇭",
+const FLAG_CODE={
+  "Mexico":"mx","Sor-Korea":"kr","Sor-Afrika":"za","Tsjekkia":"cz",
+  "Canada":"ca","Sveits":"ch","Qatar":"qa","Bosnia-Hercegovina":"ba",
+  "Brasil":"br","Marokko":"ma","Skottland":"gb-sct","Haiti":"ht",
+  "USA":"us","Australia":"au","Paraguay":"py","Tyrkia":"tr",
+  "Tyskland":"de","Ecuador":"ec","Elfenbenskysten":"ci","Curasao":"cw",
+  "Nederland":"nl","Japan":"jp","Tunisia":"tn","Sverige":"se",
+  "Belgia":"be","Iran":"ir","Egypt":"eg","New Zealand":"nz",
+  "Spania":"es","Uruguay":"uy","Saudi-Arabia":"sa","Kapp Verde":"cv",
+  "Frankrike":"fr","Senegal":"sn","Norge":"no","Irak":"iq",
+  "Argentina":"ar","Osterrike":"at","Algerie":"dz","Jordan":"jo",
+  "Portugal":"pt","Colombia":"co","Usbekistan":"uz","DR Kongo":"cd",
+  "England":"gb-eng","Kroatia":"hr","Panama":"pa","Ghana":"gh",
 };
-const f=t=>FLAG[t]??"🏳️";
+
+function getFlagCode(team) {
+  if (!team) return null;
+  // direct lookup
+  if (FLAG_CODE[team]) return FLAG_CODE[team];
+  // normalize: remove special chars for lookup
+  const norm = team.replace(/[ø]/g,"o").replace(/[Ø]/g,"O").replace(/[æ]/g,"ae").replace(/[å]/g,"a").replace(/[ç]/g,"c");
+  return FLAG_CODE[norm] || null;
+}
+
+function FlagImg({team, size=20}) {
+  const code = getFlagCode(team);
+  if (!code) return <span style={{fontSize:size*0.85,lineHeight:1,display:"inline-block",verticalAlign:"middle"}}>🏳️</span>;
+  return (
+    <img
+      src={`https://flagcdn.com/w${size*2}/${code}.png`}
+      alt={team}
+      width={size}
+      height={Math.round(size*0.67)}
+      style={{objectFit:"cover",borderRadius:2,verticalAlign:"middle",display:"inline-block",flexShrink:0}}
+      onError={e=>{e.target.style.display="none";}}
+    />
+  );
+}
+const f = () => null;
 
 // All 6 matches per group (round robin)
 function generateGroupMatches() {
@@ -285,7 +309,7 @@ function GroupBanner({group}){
       <span style={{fontSize:11,fontWeight:800,letterSpacing:2,color:T.mint,textTransform:"uppercase"}}>Gruppe {group}</span>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {GROUPS[group].map(t=>(
-          <span key={t} style={{fontSize:13,color:"rgba(255,255,255,0.65)"}}>{f(t)} {t}</span>
+          <span key={t} style={{fontSize:13,color:"rgba(255,255,255,0.65)"}}>{<FlagImg team={t}/>} {t}</span>
         ))}
       </div>
     </div>
@@ -307,7 +331,7 @@ function MatchRow({match,tip,onChange,readOnly,result,phase}){
   return(
     <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"7px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
       <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)"}}>
-        <span style={{marginRight:4}}>{f(match.home)}</span><strong>{match.home}</strong>
+        <span style={{marginRight:4}}>{<FlagImg team={match.home}/>}</span><strong>{match.home}</strong>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
         {readOnly?(
@@ -330,7 +354,7 @@ function MatchRow({match,tip,onChange,readOnly,result,phase}){
         )}
       </div>
       <div style={{fontSize:13,color:"rgba(255,255,255,0.85)"}}>
-        <strong>{match.away}</strong><span style={{marginLeft:4}}>{f(match.away)}</span>
+        <strong>{match.away}</strong><span style={{marginLeft:4}}>{<FlagImg team={match.away}/>}</span>
       </div>
     </div>
   );
@@ -398,7 +422,7 @@ function GroupRankingPicker({group,tips,setTip}){
                 style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:selected?"#fff":"rgba(255,255,255,0.35)",fontSize:13,padding:"8px 10px",fontFamily:"inherit",outline:"none"}}>
                 <option value="">Velg lag...</option>
                 {teams.map(t=>(
-                  <option key={t} value={t}>{f(t)} {t}</option>
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
@@ -406,7 +430,7 @@ function GroupRankingPicker({group,tips,setTip}){
         })}
       </div>
       <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>
-        Foreslått fra dine kamptips: {computed.map(t=>`${f(t)} ${t}`).join(" → ")}
+        Foreslått fra dine kamptips: {computed.map((t,i)=><span key={i} style={{marginRight:4}}><FlagImg team={t} size={14}/> {t}</span>)}
       </div>
     </div>
   );
@@ -431,7 +455,7 @@ function KnockoutMatchRow({slot,tips,setTip,results,readOnly}){
       opacity:hasTeams?1:0.45,
     }}>
       <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)"}}>
-        {home?<><span style={{marginRight:4}}>{f(home)}</span><strong>{home}</strong></>
+        {home?<><span style={{marginRight:4}}>{<FlagImg team={home}/>}</span><strong>{home}</strong></>
           :<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{homeName}</span>}
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -455,7 +479,7 @@ function KnockoutMatchRow({slot,tips,setTip,results,readOnly}){
         )}
       </div>
       <div style={{fontSize:13,color:"rgba(255,255,255,0.85)"}}>
-        {away?<><strong>{away}</strong><span style={{marginLeft:4}}>{f(away)}</span></>
+        {away?<><strong>{away}</strong><span style={{marginLeft:4}}>{<FlagImg team={away}/>}</span></>
           :<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{awayName}</span>}
       </div>
     </div>
@@ -827,7 +851,7 @@ function MyTipsView({participants,results,bonusResults}){
                       <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",padding:"6px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
                         Gruppeplassering: {rank.filter(Boolean).map((t,i)=>{
                           const correct=resRank[i]&&resRank[i]===t;
-                          return <span key={i} style={{marginRight:8,color:correct?T.gold:"rgba(255,255,255,0.5)"}}>{i+1}. {f(t)}{t}</span>;
+                          return <span key={i} style={{marginRight:8,color:correct?T.gold:"rgba(255,255,255,0.5)"}}>{i+1}. {<FlagImg team={t}/>}{t}</span>;
                         })}
                       </div>
                     ):null;
@@ -1022,7 +1046,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
                 return(
                   <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
                     <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {f(m.home)} {m.home} – {m.away} {f(m.away)}
+                      <><FlagImg team={m.home} size={16}/> {m.home} – {m.away} <FlagImg team={m.away} size={16}/></>
                     </span>
                     <ScoreInput val={r.home??""} onChange={v=>saveResult(m.id,"home",v)}/>
                     <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
@@ -1056,7 +1080,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
                       style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:cur?"#fff":"rgba(255,255,255,0.35)",fontSize:14,padding:"10px 12px",fontFamily:"inherit",outline:"none"}}>
                       <option value="">Velg fasit...</option>
                       {GROUPS[currentGroup].map(t=>(
-                        <option key={t} value={t}>{f(t)} {t}</option>
+                        <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
                   </div>
