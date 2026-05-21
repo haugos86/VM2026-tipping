@@ -95,10 +95,11 @@ const KNOCKOUT_SLOTS=[
   {id:"r32_10",phase:"R32",label:"16-delsfinale 10",slot1:"1J",slot2:"2L"},
   {id:"r32_11",phase:"R32",label:"16-delsfinale 11",slot1:"1K",slot2:"2I"},
   {id:"r32_12",phase:"R32",label:"16-delsfinale 12",slot1:"1L",slot2:"2J"},
-  {id:"r32_13",phase:"R32",label:"16-delsfinale 13",slot1:"3ABC",slot2:"3DEF"},
-  {id:"r32_14",phase:"R32",label:"16-delsfinale 14",slot1:"3GHI",slot2:"3JKL"},
-  {id:"r32_15",phase:"R32",label:"16-delsfinale 15",slot1:"3EFG",slot2:"3HIJ"},
-  {id:"r32_16",phase:"R32",label:"16-delsfinale 16",slot1:"3BCD",slot2:"3AKL"},
+  // Slots 13-16 (beste 3.-plasser) fylles av admin manuelt etter gruppespillet
+  {id:"r32_13",phase:"R32",label:"16-delsfinale 13",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
+  {id:"r32_14",phase:"R32",label:"16-delsfinale 14",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
+  {id:"r32_15",phase:"R32",label:"16-delsfinale 15",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
+  {id:"r32_16",phase:"R32",label:"16-delsfinale 16",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
   // R16
   ...Array.from({length:8},(_,i)=>({id:`r16_${i+1}`,phase:"R16",label:`Åttendelsfinale ${i+1}`,slot1:`V_r32_${i*2+1}`,slot2:`V_r32_${i*2+2}`})),
   // QF
@@ -266,12 +267,17 @@ function calcTotal(p,results,bonusResults){
       if(tipWinner&&tipWinner===res.winner) pts+=cfg.advance;
     }
   });
-  // Bonus
+  // Bonus - use approved answers list
   BONUS_QUESTIONS.forEach(q=>{
     const tip=p.bonus?.[q.id];
-    const ans=bonusResults[q.id]?.answer;
-    if(tip&&ans&&tip.toString().trim().toLowerCase()===ans.toString().trim().toLowerCase())
-      pts+=q.points;
+    if(!tip||tip.toString().trim()==="") return;
+    const tipNorm=tip.toString().trim().toLowerCase();
+    const approved=bonusResults[q.id]?.approved||[];
+    // Also check legacy exact match on answer field
+    const legacyAns=bonusResults[q.id]?.answer;
+    const isApproved=approved.some(a=>a.toString().trim().toLowerCase()===tipNorm)
+      ||(legacyAns&&tipNorm===legacyAns.toString().trim().toLowerCase());
+    if(isApproved) pts+=q.points;
   });
   return pts;
 }
@@ -438,6 +444,17 @@ function GroupRankingPicker({group,tips,setTip}){
 
 // ── KNOCKOUT MATCH ROW ────────────────────────────────────────────────────────
 function KnockoutMatchRow({slot,tips,setTip,results,readOnly}){
+  if(slot.adminOnly) return(
+    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:0.4}}>
+      <div style={{flex:1,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.4)",fontStyle:"italic"}}>Beste 3.-plass</div>
+      <div style={{display:"flex",alignItems:"center",gap:5}}>
+        <ScoreInput val={tips?.[slot.id]?.home??""} disabled={!readOnly} onChange={v=>setTip&&setTip(slot.id,{...tips?.[slot.id],home:v})}/>
+        <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
+        <ScoreInput val={tips?.[slot.id]?.away??""} disabled={!readOnly} onChange={v=>setTip&&setTip(slot.id,{...tips?.[slot.id],away:v})}/>
+      </div>
+      <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,0.4)",fontStyle:"italic"}}>Beste 3.-plass</div>
+    </div>
+  );
   const home=resolveSlot(slot.slot1,tips||{});
   const away=resolveSlot(slot.slot2,tips||{});
   const tip=tips?.[slot.id];
@@ -999,6 +1016,111 @@ function RulesView(){
   );
 }
 
+// ── BONUS ADMIN PANEL ─────────────────────────────────────────────────────────
+function BonusAdminPanel({participants,bonusResults,saveBonusResult}){
+  const[selectedQ,setSelectedQ]=useState("b1");
+  const[saving,setSaving]=useState(false);
+
+  const q=BONUS_QUESTIONS.find(bq=>bq.id===selectedQ);
+
+  const answers=useMemo(()=>{
+    const map={};
+    participants.forEach(p=>{
+      const ans=p.bonus?.[selectedQ];
+      if(!ans||ans.toString().trim()==="") return;
+      const norm=ans.toString().trim();
+      if(!map[norm]) map[norm]={raw:norm,count:0,names:[]};
+      map[norm].count++;
+      map[norm].names.push(p.name);
+    });
+    return Object.values(map).sort((a,b)=>b.count-a.count);
+  },[participants,selectedQ]);
+
+  const approved=useMemo(()=>bonusResults[selectedQ]?.approved||[],[bonusResults,selectedQ]);
+
+  const toggleApproved=async(raw)=>{
+    const cur=bonusResults[selectedQ]?.approved||[];
+    const next=cur.includes(raw)?cur.filter(x=>x!==raw):[...cur,raw];
+    setSaving(true);
+    await saveBonusResult(selectedQ,bonusResults[selectedQ]?.answer||"",next);
+    setSaving(false);
+  };
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+        {BONUS_QUESTIONS.map(bq=>(
+          <button key={bq.id} onClick={()=>setSelectedQ(bq.id)} style={{
+            padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",
+            fontFamily:"inherit",fontSize:12,fontWeight:700,
+            background:selectedQ===bq.id?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",
+            color:selectedQ===bq.id?"#fff":"rgba(255,255,255,0.5)",
+          }}>{bq.icon} {bq.points}p</button>
+        ))}
+      </div>
+      {q&&(
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:4}}>{q.icon} {q.text}</div>
+          <div style={{fontSize:12,color:T.muted,marginBottom:14}}>
+            Klikk svar for å godkjenne. Alle som har skrevet det godkjente svaret får {q.points} poeng.
+            {saving&&<span style={{color:T.mint,marginLeft:8}}>Lagrer...</span>}
+          </div>
+          {answers.length===0&&(
+            <p style={{color:"rgba(255,255,255,0.3)",fontSize:13}}>Ingen svar ennå.</p>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"42vh",overflowY:"auto"}}>
+            {answers.map(({raw,count,names})=>{
+              const isApproved=approved.includes(raw);
+              return(
+                <div key={raw} onClick={()=>toggleApproved(raw)} style={{
+                  display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                  borderRadius:10,cursor:"pointer",transition:"all 0.15s",
+                  background:isApproved?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.04)",
+                  border:`1px solid ${isApproved?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.08)"}`,
+                }}>
+                  <div style={{
+                    width:22,height:22,borderRadius:6,flexShrink:0,
+                    background:isApproved?"rgba(126,200,160,0.3)":"rgba(255,255,255,0.08)",
+                    border:`1px solid ${isApproved?T.mint:"rgba(255,255,255,0.15)"}`,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontSize:13,color:isApproved?T.mint:"transparent",
+                  }}>✓</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:700,color:isApproved?T.mint:"#fff"}}>{raw}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {names.join(", ")}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize:12,fontWeight:700,flexShrink:0,
+                    color:isApproved?T.mint:"rgba(255,255,255,0.4)",
+                    background:isApproved?"rgba(126,200,160,0.1)":"rgba(255,255,255,0.05)",
+                    padding:"3px 10px",borderRadius:20,
+                  }}>{count} {isApproved?`· ${count*q.points}p`:""}</div>
+                </div>
+              );
+            })}
+          </div>
+          {approved.length>0&&(
+            <div style={{marginTop:12,padding:"10px 14px",background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",borderRadius:10}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:T.gold,textTransform:"uppercase",marginBottom:6}}>
+                Godkjente svar
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {approved.map(a=>(
+                  <span key={a} style={{fontSize:12,color:T.gold,background:"rgba(240,192,90,0.1)",padding:"3px 10px",borderRadius:20,border:"1px solid rgba(240,192,90,0.2)"}}>
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 function AdminView({results,setResults,bonusResults,setBonusResults,participants,reload}){
   const[pin,setPin]=useState(""),[authed,setAuthed]=useState(false);
@@ -1034,9 +1156,10 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
     catch(e){console.error(e);}
   };
 
-  const saveBonusResult=async(id,val)=>{
-    setBonusResults(b=>({...b,[id]:{answer:val}}));
-    try{await sb.upsert("bonus_results",[{id,answer:val}]);}
+  const saveBonusResult=async(id,val,approved)=>{
+    const appList=approved??bonusResults[id]?.approved??[];
+    setBonusResults(b=>({...b,[id]:{answer:val,approved:appList}}));
+    try{await sb.upsert("bonus_results",[{id,answer:val,approved:JSON.stringify(appList)}]);}
     catch(e){console.error(e);}
   };
 
@@ -1141,13 +1264,13 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
           </div>
         )}
 
-        {tab==="bonus"&&BONUS_QUESTIONS.map(q=>(
-          <div key={q.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"14px",marginBottom:10}}>
-            <label style={{...labelCss,marginBottom:8}}>{q.icon} {q.text} — fasit <span style={{color:T.gold}}>{q.points}p</span></label>
-            <input type={q.type??"text"} value={bonusResults[q.id]?.answer??""} style={{...inputCss,marginBottom:0}}
-              onChange={e=>saveBonusResult(q.id,e.target.value)}/>
-          </div>
-        ))}
+        {tab==="bonus"&&(
+          <BonusAdminPanel
+            participants={participants}
+            bonusResults={bonusResults}
+            saveBonusResult={saveBonusResult}
+          />
+        )}
 
         {tab==="stats"&&(
           <div>
@@ -1202,7 +1325,11 @@ export default function App(){
         }
       });
       setResults(resMap);
-      setBonusResults(Object.fromEntries(bonus.map(b=>[b.id,{answer:b.answer}])));
+      setBonusResults(Object.fromEntries(bonus.map(b=>{
+        let approved=[];
+        try{if(b.approved) approved=JSON.parse(b.approved);}catch{}
+        return[b.id,{answer:b.answer,approved}];
+      })));
       setDbError(false);
     }catch(e){console.error(e);setDbError(true);}
     finally{setLoading(false);}
