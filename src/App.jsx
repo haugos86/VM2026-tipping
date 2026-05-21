@@ -198,10 +198,10 @@ function resolveSlot(slot,tips){
   if(rankMatch){
     const rank=parseInt(rankMatch[1])-1;
     const group=rankMatch[2];
-    // Check if user has tipped a ranking
-    const rankKey=`rank_${group}`;
-    if(tips[rankKey]&&tips[rankKey][rank]) return tips[rankKey][rank];
-    // Fallback: compute from match tips
+    // Only resolve if user has actually tipped at least one match in this group
+    const groupTipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
+    if(groupTipped===0) return null;
+    // Compute from match tips (no manual ranking picker anymore)
     const standings=computeGroupStandings(group,tips);
     return standings[rank]||null;
   }
@@ -669,7 +669,7 @@ function RegisterView({onRegister}){
             {/* Group selector */}
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
               {allGroups.map(g=>{
-                const gFilled=GROUP_MATCHES.filter(m=>m.group===g&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
+                const gFilled=GROUP_MATCHES.filter(m=>m.group===g&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!==""&&tips[m.id]?.away!==undefined&&tips[m.id]?.away!=="").length;
                 const gTotal=GROUP_MATCHES.filter(m=>m.group===g).length;
                 const done=gFilled===gTotal;
                 return(
@@ -695,7 +695,34 @@ function RegisterView({onRegister}){
                 onChange={v=>setTip(m.id,v)} phase="group" result={undefined}/>
             ))}
 
-            <GroupRankingPicker group={currentGroup} tips={tips} setTip={setTip}/>
+
+            {/* Auto-computed standings from tips */}
+            {(()=>{
+              const tippedCount=GROUP_MATCHES.filter(m=>m.group===currentGroup&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
+              if(tippedCount===0) return null;
+              const standings=computeGroupStandings(currentGroup,tips);
+              return(
+                <div style={{marginTop:14,padding:"10px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase",marginBottom:8}}>
+                    Beregnet plassering fra dine tips
+                    <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400,marginLeft:8,letterSpacing:0}}>
+                      (brukes automatisk i sluttspillet)
+                    </span>
+                  </div>
+                  {standings.map((team,i)=>{
+                    const labels=["🥇 1. plass →  videre (4p)","🥈 2. plass → videre (3p)","🥉 3. plass → beste taper (2p)","4. plass → ute"];
+                    const colors=["#f0c05a","#c0c0c0",T.mint,"rgba(255,255,255,0.3)"];
+                    return(
+                      <div key={team} style={{display:"flex",alignItems:"center",gap:10,padding:"5px 0",borderBottom:i<3?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                        <FlagImg team={team} size={18}/>
+                        <span style={{fontWeight:600,fontSize:13,color:colors[i],flex:1}}>{team}</span>
+                        <span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{labels[i]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"space-between",flexWrap:"wrap"}}>
               <div style={{display:"flex",gap:8}}>
