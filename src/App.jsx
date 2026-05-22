@@ -191,18 +191,15 @@ function computeGroupStandings(groupId,tips){
   );
 }
 
-// Resolve a slot code to a team name from tips
+// Resolve a slot code to a team name from tips (or results)
 function resolveSlot(slot,tips){
-  // "1A" = group A winner, "2B" = group B runner-up, "3ABC" = best 3rd among A,B,C
-  if(!slot) return null;
+  if(!slot||slot==="ADMIN") return null;
   const rankMatch=slot.match(/^([123])([A-L])$/);
   if(rankMatch){
     const rank=parseInt(rankMatch[1])-1;
     const group=rankMatch[2];
-    // Only resolve if user has actually tipped at least one match in this group
     const groupTipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
     if(groupTipped===0) return null;
-    // Compute from match tips (no manual ranking picker anymore)
     const standings=computeGroupStandings(group,tips);
     return standings[rank]||null;
   }
@@ -243,15 +240,23 @@ function calcTotal(p,results,bonusResults){
     const s=scoreGroupMatch(p.tips?.[m.id],results[m.id]);
     if(s!==null) pts+=s;
   });
-  // Group rankings
+  // Group rankings — computed from actual match results
   Object.keys(GROUPS).forEach(g=>{
-    const tipRank=p.tips?.[`rank_${g}`]||[];
-    const resRank=results[`rank_${g}`]||[];
-    if(resRank.length>0){
-      if(tipRank[0]&&tipRank[0]===resRank[0]) pts+=PTS.groupRank.first;
-      if(tipRank[1]&&tipRank[1]===resRank[1]) pts+=PTS.groupRank.second;
-      if(tipRank[2]&&tipRank[2]===resRank[2]) pts+=PTS.groupRank.third;
-    }
+    // Check if enough results exist for this group to compute standings
+    const groupResults={};
+    GROUP_MATCHES.filter(m=>m.group===g).forEach(m=>{
+      if(results[m.id]?.home!==undefined&&results[m.id]?.home!=="") groupResults[m.id]=results[m.id];
+    });
+    if(Object.keys(groupResults).length===0) return; // no results yet
+    // Compute actual standings from results
+    const actualStandings=computeGroupStandings(g,groupResults);
+    // Compute tipped standings from participant's tips
+    const tippedCount=GROUP_MATCHES.filter(m=>m.group===g&&p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length;
+    if(tippedCount===0) return;
+    const tipStandings=computeGroupStandings(g,p.tips||{});
+    if(actualStandings[0]&&tipStandings[0]===actualStandings[0]) pts+=PTS.groupRank.first;
+    if(actualStandings[1]&&tipStandings[1]===actualStandings[1]) pts+=PTS.groupRank.second;
+    if(actualStandings[2]&&tipStandings[2]===actualStandings[2]) pts+=PTS.groupRank.third;
   });
   // Knockout
   KNOCKOUT_SLOTS.forEach(slot=>{
@@ -1147,14 +1152,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
     setTimeout(()=>setSaving(s=>({...s,[id]:false})),800);
   };
 
-  const saveGroupRank=async(group,pos,team)=>{
-    const key=`rank_${group}`;
-    const cur=results[key]||[];
-    const upd=[...cur];upd[pos]=team;
-    setResults(r=>({...r,[key]:upd}));
-    try{await sb.upsert("results",[{id:key,home:JSON.stringify(upd),away:""}]);}
-    catch(e){console.error(e);}
-  };
+
 
   const saveBonusResult=async(id,val,approved)=>{
     const appList=approved??bonusResults[id]?.approved??[];
@@ -1166,7 +1164,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
   return(
     <div style={{maxWidth:740,margin:"0 auto"}}>
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-        {[["matches","⚽ Kamper"],["rankings","🏅 Grupperanking"],["knockout","🏆 Sluttspill"],["bonus","🎯 Bonus"],["stats","📊 Statistikk"]].map(([id,label])=>(
+        {[["matches","⚽ Kamper"],["knockout","🏆 Sluttspill"],["bonus","🎯 Bonus"],["stats","📊 Statistikk"]].map(([id,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{
             padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",
             fontSize:12,fontWeight:700,
@@ -1209,36 +1207,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
           </>
         )}
 
-        {tab==="rankings"&&(
-          <>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-              {Object.keys(GROUPS).map(g=>(
-                <button key={g} onClick={()=>setCurrentGroup(g)} style={{padding:"5px 10px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,background:currentGroup===g?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",color:currentGroup===g?"#fff":"rgba(255,255,255,0.5)"}}>
-                  {g}
-                </button>
-              ))}
-            </div>
-            <GroupBanner group={currentGroup}/>
-            <div style={{marginTop:12}}>
-              {[0,1,2].map(pos=>{
-                const labels=["1. plass (4p)","2. plass (3p)","3. plass / beste taper (2p)"];
-                const cur=(results[`rank_${currentGroup}`]||[])[pos]||"";
-                return(
-                  <div key={pos} style={{marginBottom:10}}>
-                    <label style={{...labelCss,marginBottom:4}}>{labels[pos]}</label>
-                    <select value={cur} onChange={e=>saveGroupRank(currentGroup,pos,e.target.value)}
-                      style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:cur?"#fff":"rgba(255,255,255,0.35)",fontSize:14,padding:"10px 12px",fontFamily:"inherit",outline:"none"}}>
-                      <option value="">Velg fasit...</option>
-                      {GROUPS[currentGroup].map(t=>(
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+
 
         {tab==="knockout"&&(
           <div style={{maxHeight:"62vh",overflowY:"auto",paddingRight:4}}>
@@ -1318,11 +1287,9 @@ export default function App(){
       setParticipants(parts.map(p=>({...p,tips:p.tips||{},bonus:p.bonus||{}})));
       const resMap={};
       res.forEach(r=>{
-        if(r.id.startsWith("rank_")){
-          try{resMap[r.id]=JSON.parse(r.home);}catch{resMap[r.id]=[];}
-        } else {
-          resMap[r.id]={home:r.home,away:r.away};
-        }
+        // Skip old rank_ entries (no longer used)
+        if(r.id.startsWith("rank_")) return;
+        resMap[r.id]={home:r.home,away:r.away};
       });
       setResults(resMap);
       setBonusResults(Object.fromEntries(bonus.map(b=>{
