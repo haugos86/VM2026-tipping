@@ -197,6 +197,18 @@ function computeGroupStandings(groupId,tipsOrResults) {
   );
 }
 
+// Manual group rank overrides set by admin: { "A": ["Mexico","Sør-Korea","Sør-Afrika","Tsjekkia"], ... }
+// Stored in results as id="override_A", home=JSON
+let GROUP_OVERRIDES = {};
+function setGroupOverride(group, ranking) {
+  GROUP_OVERRIDES = {...GROUP_OVERRIDES, [group]: ranking};
+}
+function getGroupRanking(group, tipsOrResults) {
+  // Admin override takes priority
+  if (GROUP_OVERRIDES[group]&&GROUP_OVERRIDES[group].length===4) return GROUP_OVERRIDES[group];
+  return computeGroupStandings(group, tipsOrResults);
+}
+
 function resolveSlot(slot,tips) {
   if (!slot||slot==="ADMIN") return null;
   const rankMatch=slot.match(/^([123])([A-L])$/);
@@ -205,6 +217,7 @@ function resolveSlot(slot,tips) {
     const group=rankMatch[2];
     const tipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
     if (tipped===0) return null;
+    // For participant tips: use computed standings (no override)
     return computeGroupStandings(group,tips)[rank]||null;
   }
   const winMatch=slot.match(/^V_(.+)$/);
@@ -246,14 +259,17 @@ function calcTotal(p,results,bonusResults) {
     if (s!==null) pts+=s;
   });
 
-  // FIX #3: Grupperanking — bare gi poeng når ALLE 6 kamper i gruppen er spilt
+  // Grupperanking — bare gi poeng når ALLE 6 kamper i gruppen er spilt
   Object.keys(GROUPS).forEach(g=>{
     const groupMatchIds=GROUP_MATCHES.filter(m=>m.group===g).map(m=>m.id);
     const resultsInGroup=groupMatchIds.filter(id=>results[id]?.home!==undefined&&results[id]?.home!=="").length;
     if (resultsInGroup<6) return; // ikke ferdig
     const tippedInGroup=groupMatchIds.filter(id=>tips[id]?.home!==undefined&&tips[id]?.home!=="").length;
     if (tippedInGroup===0) return;
-    const actual=computeGroupStandings(g,results);
+    // Use override if admin has set one, otherwise compute from results
+    const actual=GROUP_OVERRIDES[g]&&GROUP_OVERRIDES[g].length===4
+      ? GROUP_OVERRIDES[g]
+      : computeGroupStandings(g,results);
     const tipped=computeGroupStandings(g,tips);
     if (actual[0]&&tipped[0]===actual[0]) pts+=PTS.groupRank.first;
     if (actual[1]&&tipped[1]===actual[1]) pts+=PTS.groupRank.second;
@@ -1082,21 +1098,80 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
               })}
             </div>
             <GroupBanner group={currentGroup}/>
-            {/* Show computed standings when group is complete */}
+            {/* Standings + optional override */}
             {(()=>{
               const done=GROUP_MATCHES.filter(m=>m.group===currentGroup&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length===6;
               if (!done) return null;
-              const standings=computeGroupStandings(currentGroup,results);
+              const computed=computeGroupStandings(currentGroup,results);
+              const hasOverride=GROUP_OVERRIDES[currentGroup]&&GROUP_OVERRIDES[currentGroup].length===4;
+              const active=hasOverride?GROUP_OVERRIDES[currentGroup]:computed;
+              const teams=GROUPS[currentGroup];
+              const saveOverride=async(newOrder)=>{
+                setGroupOverride(currentGroup,newOrder);
+                try{await sb.upsert("results",[{id:`override_${currentGroup}`,home:JSON.stringify(newOrder),away:""}]);}
+                catch(e){console.error(e);}
+                // Force re-render
+                setResults(r=>({...r}));
+              };
+              const clearOverride=async()=>{
+                setGroupOverride(currentGroup,[]);
+                try{await sb.upsert("results",[{id:`override_${currentGroup}`,home:"[]",away:""}]);}
+                catch(e){console.error(e);}
+                setResults(r=>({...r}));
+              };
               return (
-                <div style={{margin:"8px 0",padding:"8px 12px",background:"rgba(42,122,106,0.1)",border:"1px solid rgba(42,122,106,0.2)",borderRadius:8}}>
-                  <div style={{fontSize:11,color:T.mint,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>Endelig gruppeplassering</div>
-                  {standings.map((team,i)=>(
-                    <div key={team} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,padding:"2px 0",color:i<3?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.4)"}}>
+                <div style={{margin:"8px 0",padding:"12px",background:"rgba(42,122,106,0.1)",border:`1px solid ${hasOverride?"rgba(240,192,90,0.35)":"rgba(42,122,106,0.2)"}`,borderRadius:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,color:hasOverride?T.gold:T.mint,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
+                      {hasOverride?"⚙️ Manuell plassering":"Beregnet plassering"}
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      {hasOverride&&<button onClick={clearOverride} style={{fontSize:11,color:"#f08080",background:"rgba(240,80,80,0.1)",border:"1px solid rgba(240,80,80,0.25)",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit"}}>Tilbakestill</button>}
+                    </div>
+                  </div>
+                  {/* Current ranking */}
+                  {active.map((team,i)=>(
+                    <div key={team} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,padding:"3px 0"}}>
                       <FlagImg team={team} size={16}/>
-                      <span style={{fontWeight:i<3?700:400}}>{i+1}. {team}</span>
+                      <span style={{fontWeight:i<3?700:400,color:i<3?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.4)",flex:1}}>{i+1}. {team}</span>
                       {i<3&&<span style={{color:T.mint,fontSize:11}}>{["videre","videre","beste taper"][i]}</span>}
+                      {hasOverride&&<span style={{fontSize:10,color:T.gold}}>manuell</span>}
                     </div>
                   ))}
+                  {/* Override dropdowns */}
+                  <details style={{marginTop:10}}>
+                    <summary style={{fontSize:11,color:"rgba(255,255,255,0.4)",cursor:"pointer",userSelect:"none",letterSpacing:0.5}}>
+                      ⚙️ Overstyr rekkefølge ved tiebreak
+                    </summary>
+                    <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:8}}>
+                      {[0,1,2,3].map(pos=>{
+                        const posLabels=["1. plass","2. plass","3. plass","4. plass"];
+                        const cur=(hasOverride?GROUP_OVERRIDES[currentGroup]:computed)[pos]||"";
+                        return(
+                          <div key={pos} style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",width:70,flexShrink:0}}>{posLabels[pos]}</span>
+                            <select value={cur} onChange={e=>{
+                              const base=hasOverride?[...GROUP_OVERRIDES[currentGroup]]:[...computed];
+                              // Remove the chosen team from wherever it currently is
+                              const cleaned=base.map(t=>t===e.target.value?null:t);
+                              cleaned[pos]=e.target.value;
+                              // Fill nulls with remaining teams
+                              const used=new Set(cleaned.filter(Boolean));
+                              const remaining=teams.filter(t=>!used.has(t));
+                              let ri=0;
+                              const final=cleaned.map(t=>t||(remaining[ri++]||""));
+                              saveOverride(final);
+                            }} style={{flex:1,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,color:"#fff",fontSize:13,padding:"7px 10px",fontFamily:"inherit",outline:"none"}}>
+                              {teams.map(t=><option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })}
+                      <p style={{fontSize:11,color:"rgba(255,255,255,0.3)",margin:"4px 0 0",fontStyle:"italic"}}>
+                        Beregnet: {computed.map(t=>t).join(" → ")}
+                      </p>
+                    </div>
+                  </details>
                 </div>
               );
             })()}
@@ -1206,6 +1281,12 @@ export default function App() {
       const resMap={};
       res.forEach(r=>{
         if (r.id.startsWith("rank_")) return; // skip legacy rank entries
+        if (r.id.startsWith("override_")) {
+          // Load group ranking overrides into module-level variable
+          const group=r.id.replace("override_","");
+          try { setGroupOverride(group, JSON.parse(r.home)); } catch{}
+          return;
+        }
         resMap[r.id]={home:r.home,away:r.away};
       });
       setResults(resMap);
