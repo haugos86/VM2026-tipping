@@ -544,6 +544,106 @@ function RegisterView({onRegister}) {
     finally{setSaving(false);}
   };
 
+  // ── AUTOFYLL ─────────────────────────────────────────────────────────────────
+  const [autoFilling,setAutoFilling]=useState(false);
+  const [autoFillCount,setAutoFillCount]=useState(0);
+
+  const doAutoFill=async()=>{
+    setAutoFilling(true);
+    try {
+      // Build prompt with all matches and FIFA ranking context
+      const groupList=Object.entries(GROUPS).map(([g,teams])=>`Gruppe ${g}: ${teams.join(", ")}`).join("\n");
+      const matchList=GROUP_MATCHES.map(m=>`${m.id}: ${m.home} vs ${m.away}`).join("\n");
+      const koList=KNOCKOUT_SLOTS.filter(s=>!s.adminOnly).map(s=>`${s.id}: ${s.label}`).join("\n");
+      const bonusList=BONUS_QUESTIONS.map(q=>`${q.id}: ${q.text}`).join("\n");
+
+      const prompt=`Du er en fotballekspert som skal lage et realistisk VM 2026-tippeskjema.
+
+Grupper:
+${groupList}
+
+Generer realistiske resultater basert på FIFA-ranking og lagstyrke. Bruk litt tilfeldighet — overraskelser skjer i fotball! Dette er forsøk nummer ${autoFillCount+1} så gi litt varierte resultater.
+
+Returner KUN gyldig JSON i dette formatet (ingen annen tekst):
+{
+  "matches": {
+    "g1": {"home": "2", "away": "1"},
+    ... (alle 72 gruppekamper, id g1-g72)
+  },
+  "knockout": {
+    "r32_1": {"home": "2", "away": "0"},
+    ... (alle sluttspillkamper unntatt r32_13 til r32_16)
+  },
+  "bonus": {
+    "b1": "Brasil",
+    "b2": "Kylian Mbappé",
+    "b3": "18",
+    "b4": "103",
+    "b5": "4"
+  }
+}
+
+Regler:
+- Resultater skal være realistiske (0-0 til 4-0 typisk, sjelden 5+)
+- Favoritter vinner oftere men ikke alltid
+- Bonus b3=røde kort (typisk 15-25), b4=mål totalt (typisk 150-180 for 104 kamper), b5=mål Norge scorer
+- I sluttspillet brukes lagene som logisk går videre fra gruppetipsene dine
+- For sluttspillkamper: tippe bare scoreline, hjemmelaget er den øverste i bracket
+- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og alle sluttspillkamper unntatt r32_13, r32_14, r32_15, r32_16`;
+
+      const response=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:4000,
+          messages:[{role:"user",content:prompt}]
+        })
+      });
+      const data=await response.json();
+      const text=data.content?.[0]?.text||"";
+      // Parse JSON from response
+      const jsonMatch=text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("Ingen gyldig JSON i svaret");
+      const parsed=JSON.parse(jsonMatch[0]);
+
+      // Apply match tips
+      const newTips={...tips};
+      if (parsed.matches) {
+        Object.entries(parsed.matches).forEach(([id,score])=>{
+          if (score?.home!==undefined&&score?.away!==undefined) {
+            newTips[id]={home:String(score.home),away:String(score.away)};
+          }
+        });
+      }
+      // Apply knockout tips
+      if (parsed.knockout) {
+        Object.entries(parsed.knockout).forEach(([id,score])=>{
+          if (score?.home!==undefined&&score?.away!==undefined) {
+            newTips[id]={home:String(score.home),away:String(score.away)};
+          }
+        });
+      }
+      setTips(newTips);
+
+      // Apply bonus
+      if (parsed.bonus) {
+        const newBonus={...bonus};
+        Object.entries(parsed.bonus).forEach(([id,val])=>{
+          newBonus[id]=String(val);
+        });
+        setBonus(newBonus);
+      }
+
+      setAutoFillCount(n=>n+1);
+    } catch(e) {
+      console.error("Autofyll feilet:",e);
+      alert("Autofyll feilet: "+e.message);
+    } finally {
+      setAutoFilling(false);
+    }
+  };
+
   if (locked&&mode!=="done"&&mode!=="editing") return (
     <div style={{...cardCss,textAlign:"center",padding:"48px 24px"}}>
       <div style={{fontSize:48,marginBottom:12}}>🔒</div>
@@ -643,9 +743,24 @@ function RegisterView({onRegister}) {
               <span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{filled}/{total}</span>
             </div>
           </div>
-          <span style={{fontSize:12,color:autoSaveState==="error"?"#f08080":autoSaveState==="saving"?T.mint:"rgba(255,255,255,0.25)"}}>
-            {autoSaveState==="error"?"⚠️ Lagring feilet — sjekk nett":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
-          </span>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+            <span style={{fontSize:12,color:autoSaveState==="error"?"#f08080":autoSaveState==="saving"?T.mint:"rgba(255,255,255,0.25)"}}>
+              {autoSaveState==="error"?"⚠️ Lagring feilet — sjekk nett":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
+            </span>
+            <button onClick={doAutoFill} disabled={autoFilling||isLocked} style={{
+              padding:"6px 12px",borderRadius:8,border:"1px solid rgba(240,192,90,0.35)",
+              cursor:autoFilling||isLocked?"not-allowed":"pointer",fontFamily:"inherit",
+              fontSize:11,fontWeight:700,
+              background:autoFilling?"rgba(240,192,90,0.08)":"rgba(240,192,90,0.12)",
+              color:T.gold,opacity:isLocked?0.4:1,transition:"all 0.18s",
+              display:"flex",alignItems:"center",gap:5,
+            }}>
+              {autoFilling
+                ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚽</span> Fyller ut...</>
+                : <>🎲 {autoFillCount>0?`Prøv igjen (${autoFillCount})`:"Fyll ut for meg"}</>
+              }
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -1305,6 +1420,7 @@ export default function App() {
 
   return (
     <div style={{minHeight:"100vh",background:"radial-gradient(ellipse at 15% 15%, #0e3530 0%, #071c18 45%, #020c0a 100%)",fontFamily:"-apple-system,'Segoe UI',sans-serif",color:"#fff",paddingBottom:80}}>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       <div aria-hidden style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,backgroundImage:"radial-gradient(circle,rgba(255,255,255,0.07) 1px,transparent 1px)",backgroundSize:"48px 48px",opacity:0.5}}/>
 
       {/* Header */}
