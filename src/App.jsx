@@ -591,16 +591,13 @@ Regler:
 - For sluttspillkamper: tippe bare scoreline, hjemmelaget er den øverste i bracket
 - VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og alle sluttspillkamper unntatt r32_13, r32_14, r32_15, r32_16`;
 
-      const response=await fetch("https://api.anthropic.com/v1/messages",{
+      const response=await fetch("/api/autofill",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:4000,
-          messages:[{role:"user",content:prompt}]
-        })
+        body:JSON.stringify({prompt,attempt:autoFillCount})
       });
       const data=await response.json();
+      if (!response.ok) throw new Error(data.error||"API-feil");
       const text=data.content?.[0]?.text||"";
       // Parse JSON from response
       const jsonMatch=text.match(/\{[\s\S]*\}/);
