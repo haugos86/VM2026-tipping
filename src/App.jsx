@@ -1194,6 +1194,7 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
   const [pin,setPin]=useState(""),[authed,setAuthed]=useState(false);
   const [tab,setTab]=useState("matches"),[currentGroup,setCurrentGroup]=useState("A");
   const [saving,setSaving]=useState({});
+  const [adminFilling,setAdminFilling]=useState(false);
 
   if (!authed) return (
     <div style={cardCss}>
@@ -1222,7 +1223,6 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
     catch(e){console.error(e);}
   };
 
-  const [adminFilling,setAdminFilling]=useState(false);
 
   const doAdminAutoFill=async()=>{
     if (!window.confirm("Dette vil overskrive ALLE eksisterende resultater i databasen med simulerte resultater. Kun for testing! Fortsette?")) return;
