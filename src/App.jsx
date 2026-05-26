@@ -1456,15 +1456,31 @@ Regler:
                 return (
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
+                    {slot.adminOnly?(
+                      <div style={{padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                        <div style={{fontSize:11,color:T.gold,marginBottom:6,fontWeight:700}}>{slot.label} — skriv inn lagene</div>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                          <input value={typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:""} placeholder="Hjemmelag"
+                            onChange={async e=>{const v=e.target.value;setResults(r=>({...r,[slot.id+"_home"]:v}));try{await sb.upsert("results",[{id:slot.id+"_home",home:v,away:""}]);}catch(err){console.error(err);}}}
+                            style={{flex:"1 1 100px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:7,color:"#fff",fontSize:12,padding:"6px 8px",fontFamily:"inherit",outline:"none"}}/>
+                          <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
+                          <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
+                          <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
+                          <input value={typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:""} placeholder="Bortelag"
+                            onChange={async e=>{const v=e.target.value;setResults(r=>({...r,[slot.id+"_away"]:v}));try{await sb.upsert("results",[{id:slot.id+"_away",home:v,away:""}]);}catch(err){console.error(err);}}}
+                            style={{flex:"1 1 100px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:7,color:"#fff",fontSize:12,padding:"6px 8px",fontFamily:"inherit",outline:"none"}}/>
+                          {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>ok</span>}
+                        </div>
+                      </div>
+                    ):(
                     <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                      <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {slot.label}{slot.adminOnly?" 🔧":""}
-                      </span>
+                      <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{slot.label}</span>
                       <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
-                      <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
+                      <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
                       <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
-                      {saving[slot.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>✓</span>}
+                      {saving[slot.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>ok</span>}
                     </div>
+                    )}
                   </div>
                 );
               });
