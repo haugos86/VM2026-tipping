@@ -425,7 +425,7 @@ function KnockoutMatchRow({slot,tips,setTip,results,readOnly}) {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
         {readOnly?(
-          <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
+          <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:hasTeams?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.25)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
         ):(
           <>
             <ScoreInput val={tip?.home??""} disabled={!hasTeams} onChange={v=>setTip&&setTip(slot.id,{...tip,home:v})}/>
@@ -584,12 +584,13 @@ Returner KUN gyldig JSON i dette formatet (ingen annen tekst):
 }
 
 Regler:
-- Resultater skal være realistiske (0-0 til 4-0 typisk, sjelden 5+)
-- Favoritter vinner oftere men ikke alltid
-- Bonus b3=røde kort (typisk 15-25), b4=mål totalt (typisk 150-180 for 104 kamper), b5=mål Norge scorer
-- I sluttspillet brukes lagene som logisk går videre fra gruppetipsene dine
-- For sluttspillkamper: tippe bare scoreline, hjemmelaget er den øverste i bracket
-- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og alle sluttspillkamper unntatt r32_13, r32_14, r32_15, r32_16`;
+- MAKS 5 mål per lag i en kamp — aldri 6 eller høyere
+- Typiske resultater: 1-0, 2-1, 1-1, 2-0, 3-1. Sjeldent: 4-0, 4-1. Ekstremt sjeldent: 5-x
+- Favoritter vinner oftere men ikke alltid — gjerne 1-2 overraskelser per gruppe
+- I sluttspill: 1-0, 2-1, 1-1, 2-0 er typisk. Maks 3-0
+- INKLUDER "3p" (bronsefinale) i knockout-objektet
+- Bonus b3=røde kort (typisk 15-25), b4=mål totalt (typisk 150-180 for 104 kamper), b5=mål Norge scorer totalt i gruppespill
+- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og alle sluttspillkamper inkludert "3p", unntatt r32_13, r32_14, r32_15, r32_16`;
 
       const response=await fetch("/api/autofill",{
         method:"POST",
@@ -604,22 +605,27 @@ Regler:
       if (!jsonMatch) throw new Error("Ingen gyldig JSON i svaret");
       const parsed=JSON.parse(jsonMatch[0]);
 
-      // Apply match tips
+      // Apply match tips — cap at 5 to avoid unrealistic scores
+      const capScore=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
       const newTips={...tips};
       if (parsed.matches) {
         Object.entries(parsed.matches).forEach(([id,score])=>{
           if (score?.home!==undefined&&score?.away!==undefined) {
-            newTips[id]={home:String(score.home),away:String(score.away)};
+            newTips[id]={home:capScore(score.home),away:capScore(score.away)};
           }
         });
       }
-      // Apply knockout tips
+      // Apply knockout tips — also fill bronsefinale via loser logic
       if (parsed.knockout) {
         Object.entries(parsed.knockout).forEach(([id,score])=>{
           if (score?.home!==undefined&&score?.away!==undefined) {
-            newTips[id]={home:String(score.home),away:String(score.away)};
+            newTips[id]={home:capScore(score.home),away:capScore(score.away)};
           }
         });
+      }
+      // Bronsefinale: if sf1 and sf2 are filled but 3p is not, auto-generate
+      if (newTips["sf1"]&&newTips["sf2"]&&!newTips["3p"]) {
+        newTips["3p"]={home:String(Math.floor(Math.random()*3)),away:String(Math.floor(Math.random()*3))};
       }
       setTips(newTips);
 
@@ -964,7 +970,40 @@ function MyTipsView({participants,results,bonusResults}) {
                 let lp=null;
                 return KNOCKOUT_SLOTS.map(slot=>{
                   const show=slot.phase!==lp; if (show) lp=slot.phase;
-                  return <div key={slot.id}>{show&&<PhaseHeader phase={slot.phase}/>}<KnockoutMatchRow slot={slot} tips={found.tips||{}} results={results} readOnly/></div>;
+                  const resolvedHome=resolveSlot(slot.slot1,found.tips||{});
+                const resolvedAway=resolveSlot(slot.slot2,found.tips||{});
+                const tip2=found.tips?.[slot.id];
+                const result2=results?.[slot.id];
+                const pts2=result2?.home!==undefined?scoreKnockout(tip2,result2,slot.phase):null;
+                if (slot.adminOnly) return (
+                  <div key={slot.id}>
+                    {show&&<PhaseHeader phase={slot.phase}/>}
+                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:0.3}}>
+                      <div style={{flex:1,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>Beste 3.-plass</div>
+                      <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.25)"}}>–</div>
+                      <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>Beste 3.-plass</div>
+                    </div>
+                  </div>
+                );
+                return (
+                  <div key={slot.id}>
+                    {show&&<PhaseHeader phase={slot.phase}/>}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:resolvedHome&&resolvedAway?1:0.4}}>
+                      <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
+                        {resolvedHome?<><strong>{resolvedHome}</strong><FlagImg team={resolvedHome}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.label}</span>}
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:resolvedHome&&resolvedAway?"rgba(255,255,255,0.7)":"rgba(255,255,255,0.25)"}}>
+                          {tip2?.home??"–"}–{tip2?.away??"–"}
+                        </div>
+                        {pts2!==null&&<div style={{minWidth:30,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,background:pts2>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:pts2>0?T.mint:"#555"}}>{pts2}p</div>}
+                      </div>
+                      <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
+                        {resolvedAway?<><FlagImg team={resolvedAway}/><strong>{resolvedAway}</strong></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.label}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
                 });
               })()}
               <PhaseHeader phase="BONUS"/>
