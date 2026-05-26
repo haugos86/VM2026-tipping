@@ -1222,6 +1222,101 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
     catch(e){console.error(e);}
   };
 
+  const [adminFilling,setAdminFilling]=useState(false);
+
+  const doAdminAutoFill=async()=>{
+    if (!window.confirm("Dette vil overskrive ALLE eksisterende resultater i databasen med simulerte resultater. Kun for testing! Fortsette?")) return;
+    setAdminFilling(true);
+    try {
+      const groupList=Object.entries(GROUPS).map(([g,teams])=>`Gruppe ${g}: ${teams.join(", ")}`).join("\n");
+      const prompt=`Du er en fotballekspert. Generer et komplett sett med VM 2026-resultater for simulering/testing.
+
+Grupper:
+${groupList}
+
+Returner KUN gyldig JSON (ingen annen tekst):
+{
+  "matches": {
+    "g1": {"home": "2", "away": "1"},
+    ... alle 72 gruppekamper g1-g72
+  },
+  "knockout": {
+    "r32_1": {"home": "2", "away": "0"},
+    ... alle sluttspillkamper inkludert r32_1 til r32_12, r32_13 til r32_16, r16_1 til r16_8, qf1-qf4, sf1, sf2, 3p, f
+  }
+}
+
+Regler:
+- MAKS 5 mål per lag
+- Typiske resultater: 1-0, 2-1, 1-1, 2-0. Sjeldent: 3-0, 3-1
+- Favoritter vinner oftere men ikke alltid
+- For r32_13 til r32_16 (beste 3.-plasser): bruk realistiske lag som Mexico, Kroatia, Senegal, Sverige
+- Inkluder ALLE kamper inkludert 3p (bronsefinale) og f (finale)`;
+
+      const response=await fetch("/api/autofill",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({prompt,attempt:0})
+      });
+      const data=await response.json();
+      if (!response.ok) throw new Error(data.error||"API-feil");
+      const text=data.content?.[0]?.text||"";
+      const jsonMatch=text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("Ingen gyldig JSON");
+      const parsed=JSON.parse(jsonMatch[0]);
+
+      const capScore=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
+      const allResults=[];
+
+      // Group matches
+      if (parsed.matches) {
+        Object.entries(parsed.matches).forEach(([id,score])=>{
+          if (score?.home!==undefined&&score?.away!==undefined) {
+            allResults.push({id,home:capScore(score.home),away:capScore(score.away)});
+          }
+        });
+      }
+      // Knockout
+      if (parsed.knockout) {
+        Object.entries(parsed.knockout).forEach(([id,score])=>{
+          if (score?.home!==undefined&&score?.away!==undefined) {
+            allResults.push({id,home:capScore(score.home),away:capScore(score.away)});
+          }
+        });
+      }
+
+      // Save all to Supabase in one batch
+      await sb.upsert("results",allResults);
+
+      // Update local state
+      const newResMap={};
+      allResults.forEach(r=>{newResMap[r.id]={home:r.home,away:r.away};});
+      setResults(r=>({...r,...newResMap}));
+
+      await reload();
+      alert(`✅ ${allResults.length} resultater lagret! Ledertavlen oppdateres nå.`);
+    } catch(e) {
+      console.error(e);
+      alert("Feil: "+e.message);
+    } finally {
+      setAdminFilling(false);
+    }
+  };
+
+  const doClearAllResults=async()=>{
+    if (!window.confirm("Slett ALLE resultater fra databasen? Dette kan ikke angres.")) return;
+    try {
+      // Delete all from results table
+      await fetch(`${SUPABASE_URL}/rest/v1/results?id=neq.PLACEHOLDER`,{
+        method:"DELETE",
+        headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}
+      });
+      setResults({});
+      GROUP_OVERRIDES={};
+      alert("Alle resultater slettet.");
+    } catch(e){alert("Feil: "+e.message);}
+  };
+
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
@@ -1233,6 +1328,12 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
           }}>{label}</button>
         ))}
         <button onClick={reload} style={{padding:"8px 14px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(255,255,255,0.09)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.45)"}}>🔄</button>
+        <button onClick={doAdminAutoFill} disabled={adminFilling} style={{padding:"8px 14px",borderRadius:9,cursor:adminFilling?"not-allowed":"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(240,192,90,0.3)",background:"rgba(240,192,90,0.1)",color:T.gold,opacity:adminFilling?0.5:1}}>
+          {adminFilling?"⚽ Simulerer...":"🎲 Simuler alle resultater"}
+        </button>
+        <button onClick={doClearAllResults} style={{padding:"8px 14px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(240,80,80,0.25)",background:"rgba(240,80,80,0.08)",color:"#f08080"}}>
+          🗑️ Nullstill
+        </button>
       </div>
       <div style={cardCss}>
 
