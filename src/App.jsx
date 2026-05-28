@@ -1048,16 +1048,27 @@ function MyTipsView({participants,results,bonusResults}) {
                 const tip2=found.tips?.[slot.id];
                 const result2=results?.[slot.id];
                 const pts2=result2?.home!==undefined?scoreKnockout(tip2,result2,slot.phase):null;
-                if (slot.adminOnly) return (
+                if (slot.adminOnly) {
+                  const adminHome=typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:null;
+                  const adminAway=typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:null;
+                  const hasResult=result2?.home!==undefined&&result2?.home!=="";
+                  return (
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
-                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:0.3}}>
-                      <div style={{flex:1,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>Beste 3.-plass</div>
-                      <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.25)"}}>–</div>
-                      <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>Beste 3.-plass</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:adminHome&&adminAway?0.85:0.35}}>
+                      <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
+                        {adminHome?<><strong>{adminHome}</strong><FlagImg team={adminHome}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Beste 3.-plass</span>}
+                      </div>
+                      <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:hasResult?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.2)"}}>
+                        {hasResult?`${result2.home}–${result2.away}`:"–"}
+                      </div>
+                      <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
+                        {adminAway?<><FlagImg team={adminAway}/><strong>{adminAway}</strong></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Beste 3.-plass</span>}
+                      </div>
                     </div>
                   </div>
-                );
+                  );
+                }
                 return (
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
