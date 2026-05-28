@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://cnauqnqntbywsjoyuvur.supabase.co";
@@ -544,15 +544,29 @@ function DeadlineBanner() {
 }
 
 // ── REGISTER / LOGIN ──────────────────────────────────────────────────────────
-function RegisterView({onRegister,externalResults={}}) {
-  const [mode,setMode]=useState("choose");
+function RegisterView({onRegister,externalResults={},session}) {
+  const [mode,setMode]=useState(session?"editing":"choose");
   const [name,setName]=useState(""),[pin,setPin]=useState(""),[pinConfirm,setPinConfirm]=useState("");
   const [tips,setTips]=useState({}),[bonus,setBonus]=useState({});
+  // Auto-bootstrap from session on mount
+  useEffect(()=>{
+    if (session&&!currentUserRef.current) {
+      sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(session.name)}&select=*`).then(res=>{
+        if (res[0]) {
+          currentUserRef.current=res[0];
+          setCurrentUser(res[0]);
+          setTips(res[0].tips||{});
+          setBonus(res[0].bonus||{});
+        }
+      }).catch(console.error);
+    }
+  },[session]);
   const [step,setStep]=useState("group"),[currentGroup,setCurrentGroup]=useState("A");
   const [saving,setSaving]=useState(false);
-  // FIX #10: separate autoSave error state
-  const [autoSaveState,setAutoSaveState]=useState("idle"); // idle | saving | error
+  const [autoSaveState,setAutoSaveState]=useState("idle");
   const [error,setError]=useState(""),[currentUser,setCurrentUser]=useState(null);
+  const currentUserRef=useRef(null);
+  useEffect(()=>{currentUserRef.current=currentUser;},[currentUser]);
   const locked=new Date()>=DEADLINE;
 
   const setTip=(id,val)=>setTips(t=>({...t,[id]:val}));
@@ -1007,7 +1021,7 @@ function LeaderboardView({participants,results,bonusResults}) {
 }
 
 // ── MINE TIPS ─────────────────────────────────────────────────────────────────
-function MyTipsView({session,participants,results,bonusResults}) {
+function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
   // Find the logged-in user's participant record
   const found=participants.find(p=>p.name.toLowerCase()===session?.name?.toLowerCase());
 
@@ -1021,14 +1035,23 @@ function MyTipsView({session,participants,results,bonusResults}) {
       )}
       {found&&(
         <div style={{marginTop:12}}>
-          <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <div>
               <div style={{fontWeight:800,fontSize:18,color:"#fff"}}>{found.name}</div>
               <div style={{fontSize:12,color:T.mint,marginTop:3}}>
                 {GROUP_MATCHES.filter(m=>found.tips?.[m.id]?.home!==undefined&&found.tips[m.id].home!=="").length} av {GROUP_MATCHES.length} gruppekamper tippet
               </div>
             </div>
-            <div style={{fontSize:28,fontWeight:800,color:T.gold}}>{calcTotal(found,results,bonusResults)}p</div>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{fontSize:28,fontWeight:800,color:T.gold}}>{calcTotal(found,results,bonusResults)}p</div>
+              {new Date()<DEADLINE&&onEditTips&&(
+                <button onClick={onEditTips} style={{
+                  padding:"8px 14px",borderRadius:8,border:"1px solid rgba(240,192,90,0.4)",
+                  background:"rgba(240,192,90,0.1)",color:T.gold,cursor:"pointer",
+                  fontFamily:"inherit",fontSize:12,fontWeight:700,
+                }}>✏️ Endre tips</button>
+              )}
+            </div>
           </div>
           <div style={cardCss}>
             <div style={{maxHeight:"60vh",overflowY:"auto"}}>
@@ -1805,8 +1828,8 @@ export default function App() {
           </div>
         ):(
           <>
-            {view==="register"   &&<RegisterView   onRegister={login} externalResults={results}/>}
-            {view==="mytips"     &&loggedIn&&<MyTipsView session={session} participants={participants} results={results} bonusResults={bonusResults}/>}
+            {view==="register"   &&<RegisterView   onRegister={login} externalResults={results} session={session}/>}
+            {view==="mytips"     &&loggedIn&&<MyTipsView session={session} participants={participants} results={results} bonusResults={bonusResults} onEditTips={()=>setView("register")}/>}
             {view==="mytips"     &&!loggedIn&&<div style={{...cardCss,textAlign:"center"}}><p style={{color:T.muted}}>Logg inn for å se dine tips.</p><Btn onClick={()=>setView("register")}>Logg inn</Btn></div>}
             {view==="rules"      &&<RulesView/>}
             {view==="admin"      &&<AdminView       results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
