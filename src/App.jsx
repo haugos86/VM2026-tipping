@@ -1694,11 +1694,15 @@ export default function App() {
       setParticipants(parts.map(p=>({...p,tips:p.tips||{},bonus:p.bonus||{}})));
       const resMap={};
       res.forEach(r=>{
-        if (r.id.startsWith("rank_")) return; // skip legacy rank entries
+        if (r.id.startsWith("rank_")) return;
         if (r.id.startsWith("override_")) {
-          // Load group ranking overrides into module-level variable
           const group=r.id.replace("override_","");
           try { setGroupOverride(group, JSON.parse(r.home)); } catch{}
+          return;
+        }
+        // Team name entries for adminOnly slots (r32_13_home, r32_13_away)
+        if (r.id.endsWith("_home")||r.id.endsWith("_away")) {
+          resMap[r.id]=r.home; // store as plain string
           return;
         }
         resMap[r.id]={home:r.home,away:r.away};
