@@ -1456,23 +1456,52 @@ Regler:
                 return (
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
-                    {slot.adminOnly?(
-                      <div style={{padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                        <div style={{fontSize:11,color:T.gold,marginBottom:6,fontWeight:700}}>{slot.label} — skriv inn lagene</div>
-                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                          <input value={typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:""} placeholder="Hjemmelag"
-                            onChange={async e=>{const v=e.target.value;setResults(r=>({...r,[slot.id+"_home"]:v}));try{await sb.upsert("results",[{id:slot.id+"_home",home:v,away:""}]);}catch(err){console.error(err);}}}
-                            style={{flex:"1 1 100px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:7,color:"#fff",fontSize:12,padding:"6px 8px",fontFamily:"inherit",outline:"none"}}/>
-                          <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
-                          <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
-                          <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
-                          <input value={typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:""} placeholder="Bortelag"
-                            onChange={async e=>{const v=e.target.value;setResults(r=>({...r,[slot.id+"_away"]:v}));try{await sb.upsert("results",[{id:slot.id+"_away",home:v,away:""}]);}catch(err){console.error(err);}}}
-                            style={{flex:"1 1 100px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:7,color:"#fff",fontSize:12,padding:"6px 8px",fontFamily:"inherit",outline:"none"}}/>
-                          {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>ok</span>}
+                    {slot.adminOnly?(()=>{
+                      // Compute all 3rd-place teams from results
+                      const thirdPlaceTeams=Object.keys(GROUPS).map(g=>{
+                        const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+                        if(played===0) return null;
+                        return computeGroupStandings(g,results)[2]||null;
+                      }).filter(Boolean);
+                      const homeVal=typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:"";
+                      const awayVal=typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:"";
+                      const saveTeam=async(field,v)=>{
+                        setResults(r=>({...r,[slot.id+"_"+field]:v}));
+                        try{await sb.upsert("results",[{id:slot.id+"_"+field,home:v,away:""}]);}catch(err){console.error(err);}
+                      };
+                      const TeamSelect=({value,onChange,placeholder})=>(
+                        <div style={{flex:"1 1 140px",position:"relative"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 8px"}}>
+                            {value&&<FlagImg team={value} size={16}/>}
+                            <select value={value} onChange={e=>onChange(e.target.value)}
+                              style={{background:"transparent",border:"none",color:value?"#fff":"rgba(255,255,255,0.4)",fontSize:13,fontFamily:"inherit",outline:"none",flex:1,cursor:"pointer"}}>
+                              <option value="">{placeholder}</option>
+                              {thirdPlaceTeams.map(t=>(
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
-                      </div>
-                    ):(
+                      );
+                      return (
+                        <div style={{padding:"10px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                          <div style={{fontSize:11,color:T.gold,marginBottom:8,fontWeight:700,letterSpacing:0.5}}>{slot.label} — Beste 3.-plass</div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <TeamSelect value={homeVal} onChange={v=>saveTeam("home",v)} placeholder="Hjemmelag"/>
+                            <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
+                            <span style={{color:"rgba(255,255,255,0.25)",fontWeight:700}}>-</span>
+                            <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
+                            <TeamSelect value={awayVal} onChange={v=>saveTeam("away",v)} placeholder="Bortelag"/>
+                            {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>✓</span>}
+                          </div>
+                          {thirdPlaceTeams.length===0&&(
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:6,fontStyle:"italic"}}>
+                              Legg inn alle gruppekamper first for å se 3.-plasslagene
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })():(
                     <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
                       <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{slot.label}</span>
                       <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
