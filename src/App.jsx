@@ -444,9 +444,16 @@ function MatchRow({match,tip,onChange,readOnly,result,phase}) {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
         {readOnly?(
-          <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)",letterSpacing:1}}>
-            {tip?.home??"–"}–{tip?.away??"–"}
-          </div>
+          <>
+            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)",letterSpacing:1}}>
+              {tip?.home??"–"}–{tip?.away??"–"}
+            </div>
+            {result?.home!==undefined&&result?.home!==""&&(
+              <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
+                {result.home}–{result.away}
+              </div>
+            )}
+          </>
         ):(
           <>
             <ScoreInput val={tip?.home??""} onChange={v=>onChange({...tip,home:v})}/>
@@ -498,7 +505,14 @@ function KnockoutMatchRow({slot,tips,setTip,results,readOnly}) {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
         {readOnly?(
-          <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:hasTeams?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.25)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
+          <>
+            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:hasTeams?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.25)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
+            {result?.home!==undefined&&result?.home!==""&&(
+              <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
+                {result.home}–{result.away}
+              </div>
+            )}
+          </>
         ):(
           <>
             <ScoreInput val={tip?.home??""} disabled={!hasTeams} onChange={v=>setTip&&setTip(slot.id,{...tip,home:v})}/>
@@ -1054,6 +1068,17 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
             </div>
           </div>
           <div style={cardCss}>
+            {/* Legend */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:14,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:11,color:"rgba(255,255,255,0.5)"}}>
+              <span style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{padding:"2px 8px",borderRadius:4,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",fontSize:10,fontWeight:700}}>1–0</span>
+                Ditt tips
+              </span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{padding:"2px 8px",borderRadius:4,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",color:T.gold,fontSize:10,fontWeight:700}}>1–0</span>
+                Fasit
+              </span>
+            </div>
             <div style={{maxHeight:"60vh",overflowY:"auto"}}>
               {Object.keys(GROUPS).map(g=>(
                 <div key={g}>
@@ -1101,9 +1126,14 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
                         {resolvedHome?<><strong>{resolvedHome}</strong><FlagImg team={resolvedHome}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.label}</span>}
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:resolvedHome&&resolvedAway?"rgba(255,255,255,0.7)":"rgba(255,255,255,0.25)"}}>
+                        <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:resolvedHome&&resolvedAway?"rgba(255,255,255,0.7)":"rgba(255,255,255,0.25)"}}>
                           {tip2?.home??"–"}–{tip2?.away??"–"}
                         </div>
+                        {result2?.home!==undefined&&result2?.home!==""&&(
+                          <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
+                            {result2.home}–{result2.away}
+                          </div>
+                        )}
                         {pts2!==null&&<div style={{minWidth:30,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,background:pts2>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:pts2>0?T.mint:"#555"}}>{pts2}p</div>}
                       </div>
                       <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
