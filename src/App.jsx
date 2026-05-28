@@ -1490,32 +1490,67 @@ Regler:
 
         {tab==="bonus"&&<BonusAdminPanel participants={participants} bonusResults={bonusResults} saveBonusResult={saveBonusResult}/>}
 
-        {tab==="stats"&&(
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
-              {[
-                ["👥 Deltakere",participants.length],
-                ["⚽ Gruppekamper",`${Object.keys(results).filter(k=>k.startsWith("g")).length}/${GROUP_MATCHES.length}`],
-                ["🏆 Sluttspill",`${KNOCKOUT_SLOTS.filter(s=>results[s.id]?.home!==undefined&&results[s.id]?.home!=="").length}/${KNOCKOUT_SLOTS.length}`],
-                ["🎯 Bonus satt",Object.keys(bonusResults).length],
-              ].map(([l,v])=>(
-                <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px"}}>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{l}</div>
-                  <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{v}</div>
-                </div>
-              ))}
+        {tab==="stats"&&(()=>{
+          const ranked=[...participants]
+            .map(p=>({...p,total:calcTotal(p,results,bonusResults)}))
+            .sort((a,b)=>b.total-a.total);
+          const medals=["\u{1F947}","\u{1F948}","\u{1F949}"];
+          const pg=["rgba(240,192,90,0.15)","rgba(192,192,192,0.1)","rgba(205,127,50,0.12)"];
+          const pb=["rgba(240,192,90,0.35)","rgba(192,192,192,0.25)","rgba(205,127,50,0.25)"];
+          const pc=["#f0c05a","#c0c0c0","#cd7f32"];
+          const played=GROUP_MATCHES.filter(m=>results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+          const exportExcel=()=>{
+            const rows=[["Plass","Navn","Poeng","Gruppekamper tippet"]];
+            ranked.forEach((p,i)=>{
+              const gt=GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length;
+              rows.push([i+1,p.name,p.total,gt]);
+            });
+            const csv=rows.map(r=>r.join("\t")).join("\n");
+            const blob=new Blob(["\uFEFF"+csv],{type:"text/tab-separated-values;charset=utf-8"});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement("a");
+            a.href=url;a.download="VM2026_Ledertavle.tsv";a.click();
+            URL.revokeObjectURL(url);
+          };
+          return (
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+                {[
+                  ["Deltakere",participants.length],
+                  ["Gruppekamper",`${played}/${GROUP_MATCHES.length}`],
+                  ["Sluttspill",`${KNOCKOUT_SLOTS.filter(s=>results[s.id]?.home!==undefined&&results[s.id]?.home!=="").length}/${KNOCKOUT_SLOTS.length}`],
+                  ["Bonus satt",Object.keys(bonusResults).length],
+                ].map(([l,v])=>(
+                  <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px"}}>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{l}</div>
+                    <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>Ledertavle (kun admin)</div>
+                <button onClick={exportExcel} style={{padding:"7px 14px",borderRadius:8,border:"1px solid rgba(126,200,160,0.3)",background:"rgba(126,200,160,0.1)",color:T.mint,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>
+                  Eksporter til Excel
+                </button>
+              </div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:10}}>{played} av {GROUP_MATCHES.length} gruppekamper spilt</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"50vh",overflowY:"auto"}}>
+                {ranked.map((p,i)=>(
+                  <div key={p.name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,background:i<3?pg[i]:"rgba(255,255,255,0.03)",border:`1px solid ${i<3?pb[i]:"rgba(255,255,255,0.06)"}`}}>
+                    <span style={{fontSize:i<3?22:15,width:28,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:`${i+1}.`}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:15,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:1}}>
+                        {GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length}/{GROUP_MATCHES.length} kamper tippet
+                      </div>
+                    </div>
+                    <div style={{fontSize:20,fontWeight:800,color:i<3?pc[i]:"rgba(255,255,255,0.65)",flexShrink:0}}>{p.total}p</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            {[...participants]
-              .map(p=>({...p,total:calcTotal(p,results,bonusResults)}))
-              .sort((a,b)=>b.total-a.total)
-              .map((p,i)=>(
-                <div key={p.name} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"7px 2px",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                  <span style={{color:"rgba(255,255,255,0.65)"}}>{i+1}. {p.name}</span>
-                  <span style={{fontWeight:700,color:T.gold}}>{p.total}p</span>
-                </div>
-              ))}
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -1524,14 +1559,13 @@ Regler:
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
 const NAV=[
   {id:"register",  label:"📋 Registrer"},
-  {id:"leaderboard",label:"🏆 Ledertavle"},
   {id:"mytips",    label:"📄 Mine tips"},
   {id:"rules",     label:"📖 Regler"},
   {id:"admin",     label:"⚙️ Admin"},
 ];
 
 export default function App() {
-  const [view,setView]=useState("leaderboard");
+  const [view,setView]=useState("mytips");
   const [participants,setParticipants]=useState([]);
   const [results,setResults]=useState({});
   const [bonusResults,setBonusResults]=useState({});
@@ -1569,7 +1603,7 @@ export default function App() {
   },[]);
 
   useEffect(()=>{loadData();},[loadData]);
-  useEffect(()=>{const t=setInterval(loadData,30000);return()=>clearInterval(t);},[loadData]);
+  useEffect(()=>{const t=setInterval(loadData,120000);return()=>clearInterval(t);},[loadData]);
 
   return (
     <div style={{minHeight:"100vh",background:"radial-gradient(ellipse at 15% 15%, #0e3530 0%, #071c18 45%, #020c0a 100%)",fontFamily:"-apple-system,'Segoe UI',sans-serif",color:"#fff",paddingBottom:80}}>
@@ -1619,7 +1653,6 @@ export default function App() {
         ):(
           <>
             {view==="register"   &&<RegisterView   onRegister={loadData}/>}
-            {view==="leaderboard"&&<LeaderboardView participants={participants} results={results} bonusResults={bonusResults}/>}
             {view==="mytips"     &&<MyTipsView      participants={participants} results={results} bonusResults={bonusResults}/>}
             {view==="rules"      &&<RulesView/>}
             {view==="admin"      &&<AdminView       results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
