@@ -587,7 +587,7 @@ function RegisterView({onRegister,externalResults={}}) {
       if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");setSaving(false);return;}
       const u={name:cleanName,pin_hash:ph,tips:{},bonus:{}};
       await sb.upsert("participants",[u]);
-      setCurrentUser(u);setTips({});setBonus({});onRegister();setMode("editing");
+      setCurrentUser(u);setTips({});setBonus({});onRegister(u);setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
@@ -602,7 +602,7 @@ function RegisterView({onRegister,externalResults={}}) {
       if (res.length===0){setError("Bruker ikke funnet — sjekk stavemåten eller registrer deg.");setSaving(false);return;}
       if (res[0].pin_hash!==ph){setError("Feil PIN-kode.");setSaving(false);return;}
       const u=res[0];
-      setCurrentUser(u);setTips(u.tips||{});setBonus(u.bonus||{});onRegister();setMode("editing");
+      setCurrentUser(u);setTips(u.tips||{});setBonus(u.bonus||{});onRegister(u);setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
@@ -1007,34 +1007,18 @@ function LeaderboardView({participants,results,bonusResults}) {
 }
 
 // ── MINE TIPS ─────────────────────────────────────────────────────────────────
-function MyTipsView({participants,results,bonusResults}) {
-  const [search,setSearch]=useState("");
-  // Exact match first, then partial — never auto-select when ambiguous
-  const exactMatch=participants.find(p=>p.name.toLowerCase()===search.toLowerCase());
-  const partialMatches=participants.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
-  const found=exactMatch||(partialMatches.length===1?partialMatches[0]:null);
-  const ambiguous=!exactMatch&&partialMatches.length>1;
+function MyTipsView({session,participants,results,bonusResults}) {
+  // Find the logged-in user's participant record
+  const found=participants.find(p=>p.name.toLowerCase()===session?.name?.toLowerCase());
 
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
-      <div style={cardCss}>
-        <label style={labelCss}>Søk opp navn</label>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Skriv navn..." style={inputCss}/>
-        {search&&!found&&!ambiguous&&<p style={{color:"#f08080",fontSize:13}}>Ingen treff.</p>}
-        {ambiguous&&(
-          <div style={{marginTop:8}}>
-            <p style={{color:T.gold,fontSize:13,marginBottom:8}}>Flere treff — velg riktig navn:</p>
-            {partialMatches.map(p=>(
-              <button key={p.name} onClick={()=>setSearch(p.name)} style={{
-                display:"block",width:"100%",textAlign:"left",padding:"8px 12px",
-                marginBottom:6,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",
-                background:"rgba(255,255,255,0.05)",color:"#fff",cursor:"pointer",
-                fontFamily:"inherit",fontSize:14,fontWeight:600,
-              }}>{p.name}</button>
-            ))}
-          </div>
-        )}
-      </div>
+      {!found&&(
+        <div style={{...cardCss,textAlign:"center",padding:"32px"}}>
+          <div style={{fontSize:32,marginBottom:12}}>⏳</div>
+          <p style={{color:T.muted}}>Laster inn dine tips...</p>
+        </div>
+      )}
       {found&&(
         <div style={{marginTop:12}}>
           <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1697,15 +1681,28 @@ Regler:
 }
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
-const NAV=[
-  {id:"register",  label:"📋 Registrer"},
-  {id:"mytips",    label:"📄 Mine tips"},
-  {id:"rules",     label:"📖 Regler"},
-  {id:"admin",     label:"⚙️ Admin"},
-];
+// NAV is now dynamic - computed in App based on login state
 
 export default function App() {
-  const [view,setView]=useState("mytips");
+  // Session state — persisted in sessionStorage so refresh keeps you logged in
+  const [session,setSession]=useState(()=>{
+    try{const s=sessionStorage.getItem("vm_session");return s?JSON.parse(s):null;}
+    catch{return null;}
+  });
+  const loggedIn=!!session;
+
+  const login=(user)=>{
+    setSession(user);
+    try{sessionStorage.setItem("vm_session",JSON.stringify(user));}catch{}
+    setView("mytips");
+  };
+  const logout=()=>{
+    setSession(null);
+    try{sessionStorage.removeItem("vm_session");}catch{}
+    setView("register");
+  };
+
+  const [view,setView]=useState(()=>session?"mytips":"register");
   const [participants,setParticipants]=useState([]);
   const [results,setResults]=useState({});
   const [bonusResults,setBonusResults]=useState({});
@@ -1769,9 +1766,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* Nav */}
+      {/* Nav — dynamic based on login state */}
       <div style={{position:"relative",zIndex:1,display:"flex",justifyContent:"center",gap:4,padding:"14px 12px 0",flexWrap:"wrap"}}>
-        {NAV.map(n=>(
+        {[
+          !loggedIn&&{id:"register",label:"📋 Registrer / Logg inn"},
+          loggedIn&&{id:"mytips",label:"📄 Mine tips"},
+          {id:"rules",label:"📖 Regler"},
+          {id:"admin",label:"⚙️ Admin"},
+        ].filter(Boolean).map(n=>(
           <button key={n.id} onClick={()=>setView(n.id)} style={{
             padding:"9px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,transition:"all 0.16s",
             background:view===n.id?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",
@@ -1779,6 +1781,13 @@ export default function App() {
             boxShadow:view===n.id?"0 2px 14px rgba(42,122,106,0.45)":"none",
           }}>{n.label}</button>
         ))}
+        {loggedIn&&(
+          <button onClick={logout} style={{
+            padding:"9px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",
+            fontFamily:"inherit",fontSize:13,fontWeight:700,
+            background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",
+          }}>Logg ut</button>
+        )}
       </div>
 
       {/* Content */}
@@ -1796,8 +1805,9 @@ export default function App() {
           </div>
         ):(
           <>
-            {view==="register"   &&<RegisterView   onRegister={loadData} externalResults={results}/>}
-            {view==="mytips"     &&<MyTipsView      participants={participants} results={results} bonusResults={bonusResults}/>}
+            {view==="register"   &&<RegisterView   onRegister={login} externalResults={results}/>}
+            {view==="mytips"     &&loggedIn&&<MyTipsView session={session} participants={participants} results={results} bonusResults={bonusResults}/>}
+            {view==="mytips"     &&!loggedIn&&<div style={{...cardCss,textAlign:"center"}}><p style={{color:T.muted}}>Logg inn for å se dine tips.</p><Btn onClick={()=>setView("register")}>Logg inn</Btn></div>}
             {view==="rules"      &&<RulesView/>}
             {view==="admin"      &&<AdminView       results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
           </>
