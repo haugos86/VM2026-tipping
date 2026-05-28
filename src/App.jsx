@@ -544,7 +544,7 @@ function DeadlineBanner() {
 }
 
 // ── REGISTER / LOGIN ──────────────────────────────────────────────────────────
-function RegisterView({onRegister}) {
+function RegisterView({onRegister,externalResults={}}) {
   const [mode,setMode]=useState("choose");
   const [name,setName]=useState(""),[pin,setPin]=useState(""),[pinConfirm,setPinConfirm]=useState("");
   const [tips,setTips]=useState({}),[bonus,setBonus]=useState({});
@@ -917,7 +917,7 @@ Regler:
               let lp=null;
               return KNOCKOUT_SLOTS.map(slot=>{
                 const show=slot.phase!==lp; if (show) lp=slot.phase;
-                return <div key={slot.id}>{show&&<PhaseHeader phase={slot.phase}/>}<KnockoutMatchRow slot={slot} tips={tips} setTip={setTip} results={{}}/></div>;
+                return <div key={slot.id}>{show&&<PhaseHeader phase={slot.phase}/>}<KnockoutMatchRow slot={slot} tips={tips} setTip={setTip} results={externalResults}/></div>;
               });
             })()}
             <div style={{display:"flex",gap:10,marginTop:14}}>
@@ -1009,14 +1009,31 @@ function LeaderboardView({participants,results,bonusResults}) {
 // ── MINE TIPS ─────────────────────────────────────────────────────────────────
 function MyTipsView({participants,results,bonusResults}) {
   const [search,setSearch]=useState("");
-  const found=participants.find(p=>p.name.toLowerCase().includes(search.toLowerCase()));
+  // Exact match first, then partial — never auto-select when ambiguous
+  const exactMatch=participants.find(p=>p.name.toLowerCase()===search.toLowerCase());
+  const partialMatches=participants.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
+  const found=exactMatch||(partialMatches.length===1?partialMatches[0]:null);
+  const ambiguous=!exactMatch&&partialMatches.length>1;
 
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
       <div style={cardCss}>
         <label style={labelCss}>Søk opp navn</label>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Skriv navn..." style={inputCss}/>
-        {search&&!found&&<p style={{color:"#f08080",fontSize:13}}>Ingen treff.</p>}
+        {search&&!found&&!ambiguous&&<p style={{color:"#f08080",fontSize:13}}>Ingen treff.</p>}
+        {ambiguous&&(
+          <div style={{marginTop:8}}>
+            <p style={{color:T.gold,fontSize:13,marginBottom:8}}>Flere treff — velg riktig navn:</p>
+            {partialMatches.map(p=>(
+              <button key={p.name} onClick={()=>setSearch(p.name)} style={{
+                display:"block",width:"100%",textAlign:"left",padding:"8px 12px",
+                marginBottom:6,borderRadius:8,border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)",color:"#fff",cursor:"pointer",
+                fontFamily:"inherit",fontSize:14,fontWeight:600,
+              }}>{p.name}</button>
+            ))}
+          </div>
+        )}
       </div>
       {found&&(
         <div style={{marginTop:12}}>
@@ -1779,7 +1796,7 @@ export default function App() {
           </div>
         ):(
           <>
-            {view==="register"   &&<RegisterView   onRegister={loadData}/>}
+            {view==="register"   &&<RegisterView   onRegister={loadData} externalResults={results}/>}
             {view==="mytips"     &&<MyTipsView      participants={participants} results={results} bonusResults={bonusResults}/>}
             {view==="rules"      &&<RulesView/>}
             {view==="admin"      &&<AdminView       results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
