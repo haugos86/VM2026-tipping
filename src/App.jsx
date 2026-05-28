@@ -733,8 +733,8 @@ Regler:
       <DeadlineBanner/>
       <div style={{textAlign:"center",marginBottom:24}}>
         <div style={{fontSize:52,marginBottom:8}}>⚽</div>
-        <h2 style={{color:"#fff",margin:"0 0 4px",fontSize:22}}>VM 2026 Tipping</h2>
-        <p style={{color:T.muted,margin:0,fontSize:13}}>Vinmonopolet Økonomi</p>
+        <h2 style={{color:"#fff",margin:"0 0 4px",fontSize:22}}>VM 2026 Tippekonkurranse</h2>
+        <p style={{color:T.muted,margin:0,fontSize:13}}>Vinmonopolet</p>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {[
@@ -1742,8 +1742,8 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${T.teal},#1a5a4a)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,boxShadow:"0 2px 10px rgba(42,122,106,0.5)"}}>⚽</div>
           <div>
-            <div style={{fontSize:10,letterSpacing:2.5,color:T.mint,textTransform:"uppercase",fontWeight:700,lineHeight:1}}>Vinmonopolet Økonomi</div>
-            <div style={{fontSize:16,fontWeight:800,lineHeight:1.3}}>VM 2026 Tipping</div>
+            <div style={{fontSize:10,letterSpacing:2.5,color:T.mint,textTransform:"uppercase",fontWeight:700,lineHeight:1}}>Vinmonopolet</div>
+            <div style={{fontSize:16,fontWeight:800,lineHeight:1.3}}>VM 2026 Tippekonkurranse</div>
           </div>
         </div>
         <div>
