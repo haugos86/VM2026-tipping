@@ -249,6 +249,78 @@ function resolveSlot(slot,tips) {
   return slot;
 }
 
+// resolveForDisplay: like resolveSlot but uses admin results+teamnames for adminOnly slots
+// This powers "Mine tips" so the full bracket shows real team names
+function resolveForDisplay(slot, tips, results) {
+  if (!slot||slot==="ADMIN") return null;
+
+  // Group rank: same as resolveSlot
+  const rankMatch=slot.match(/^([123])([A-L])$/);
+  if (rankMatch) {
+    const rank=parseInt(rankMatch[1])-1;
+    const group=rankMatch[2];
+    // Use admin results if available, else participant tips
+    const adminPlayed=GROUP_MATCHES.filter(m=>m.group===group&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+    if (adminPlayed>0) {
+      const override=GROUP_OVERRIDES[group];
+      return override&&override.length===4?override[rank]:computeGroupStandings(group,results)[rank]||null;
+    }
+    const tipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
+    if (tipped===0) return null;
+    return computeGroupStandings(group,tips)[rank]||null;
+  }
+
+  // Winner of a match
+  const winMatch=slot.match(/^V_(.+)$/);
+  if (winMatch) {
+    const matchId=winMatch[1];
+    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
+    if (!s) return null;
+
+    // For adminOnly slots: use admin-stored team names + result score
+    if (s.adminOnly) {
+      const res=results[matchId];
+      if (!res||res.home===""||res.away==="") return null;
+      const rh=parseInt(res.home),ra=parseInt(res.away);
+      if (isNaN(rh)||isNaN(ra)) return null;
+      const homeTeam=typeof results[matchId+"_home"]==="string"?results[matchId+"_home"]:null;
+      const awayTeam=typeof results[matchId+"_away"]==="string"?results[matchId+"_away"]:null;
+      if (!homeTeam||!awayTeam) return null;
+      return rh>=ra?homeTeam:awayTeam;
+    }
+
+    // For normal slots: prefer admin result, fall back to participant tip
+    const res=results[matchId];
+    const tip=tips[matchId];
+    const score=res?.home!==undefined&&res?.home!==""?res:tip;
+    if (!score||score.home===""||score.away==="") return null;
+    const h=parseInt(score.home),a=parseInt(score.away);
+    if (isNaN(h)||isNaN(a)) return null;
+    const home=resolveForDisplay(s.slot1,tips,results);
+    const away=resolveForDisplay(s.slot2,tips,results);
+    return h>=a?home:away;
+  }
+
+  // Loser of a match (for bronsefinale)
+  const loseMatch=slot.match(/^T_(.+)$/);
+  if (loseMatch) {
+    const matchId=loseMatch[1];
+    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
+    if (!s) return null;
+    const res=results[matchId];
+    const tip=tips[matchId];
+    const score=res?.home!==undefined&&res?.home!==""?res:tip;
+    if (!score||score.home===""||score.away==="") return null;
+    const h=parseInt(score.home),a=parseInt(score.away);
+    if (isNaN(h)||isNaN(a)) return null;
+    const home=resolveForDisplay(s.slot1,tips,results);
+    const away=resolveForDisplay(s.slot2,tips,results);
+    return h<a?home:away;
+  }
+
+  return slot;
+}
+
 function calcTotal(p,results,bonusResults) {
   let pts=0;
   const tips=p.tips||{};
@@ -411,8 +483,9 @@ function KnockoutMatchRow({slot,tips,setTip,results,readOnly}) {
     </div>
   );
 
-  const home=resolveSlot(slot.slot1,tips||{});
-  const away=resolveSlot(slot.slot2,tips||{});
+  // Use resolveForDisplay if results available (admin has entered data), else resolveSlot
+  const home=resolveForDisplay?resolveForDisplay(slot.slot1,tips||{},results||{}):resolveSlot(slot.slot1,tips||{});
+  const away=resolveForDisplay?resolveForDisplay(slot.slot2,tips||{},results||{}):resolveSlot(slot.slot2,tips||{});
   const tip=tips?.[slot.id];
   const result=results?.[slot.id];
   const pts=result?.home!==undefined?scoreKnockout(tip,result,slot.phase):null;
@@ -970,8 +1043,8 @@ function MyTipsView({participants,results,bonusResults}) {
                 let lp=null;
                 return KNOCKOUT_SLOTS.map(slot=>{
                   const show=slot.phase!==lp; if (show) lp=slot.phase;
-                  const resolvedHome=resolveSlot(slot.slot1,found.tips||{});
-                const resolvedAway=resolveSlot(slot.slot2,found.tips||{});
+                  const resolvedHome=resolveForDisplay(slot.slot1,found.tips||{},results);
+                const resolvedAway=resolveForDisplay(slot.slot2,found.tips||{},results);
                 const tip2=found.tips?.[slot.id];
                 const result2=results?.[slot.id];
                 const pts2=result2?.home!==undefined?scoreKnockout(tip2,result2,slot.phase):null;
