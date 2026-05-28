@@ -1457,11 +1457,12 @@ Regler:
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
                     {slot.adminOnly?(()=>{
-                      // Compute all 3rd-place teams from results
+                      // All 12 potential 3rd-place teams from results (show all groups)
                       const thirdPlaceTeams=Object.keys(GROUPS).map(g=>{
-                        const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
-                        if(played===0) return null;
-                        return computeGroupStandings(g,results)[2]||null;
+                        const gMatches=GROUP_MATCHES.filter(m=>m.group===g);
+                        const played=gMatches.filter(m=>results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+                        const team=computeGroupStandings(g,played>0?results:{})[2]||null;
+                        return team?{team,group:g}:null;
                       }).filter(Boolean);
                       const homeVal=typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:"";
                       const awayVal=typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:"";
@@ -1469,34 +1470,43 @@ Regler:
                         setResults(r=>({...r,[slot.id+"_"+field]:v}));
                         try{await sb.upsert("results",[{id:slot.id+"_"+field,home:v,away:""}]);}catch(err){console.error(err);}
                       };
-                      const TeamSelect=({value,onChange,placeholder})=>(
-                        <div style={{flex:"1 1 140px",position:"relative"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 8px"}}>
-                            {value&&<FlagImg team={value} size={16}/>}
-                            <select value={value} onChange={e=>onChange(e.target.value)}
-                              style={{background:"transparent",border:"none",color:value?"#fff":"rgba(255,255,255,0.4)",fontSize:13,fontFamily:"inherit",outline:"none",flex:1,cursor:"pointer"}}>
-                              <option value="">{placeholder}</option>
-                              {thirdPlaceTeams.map(t=>(
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
-                          </div>
+                      // Custom flag dropdown — uses a styled select with flag shown outside
+                      const FlagSelect=({value,onChange,placeholder})=>(
+                        <div style={{flex:"1 1 160px",position:"relative",display:"flex",alignItems:"center",gap:6,
+                          background:"rgba(255,255,255,0.07)",border:`1px solid ${value?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.15)"}`,
+                          borderRadius:8,padding:"6px 10px",cursor:"pointer"}}>
+                          {value
+                            ?<><FlagImg team={value} size={18}/><span style={{fontSize:13,color:"#fff",fontWeight:600,flex:1}}>{value}</span></>
+                            :<span style={{fontSize:12,color:"rgba(255,255,255,0.35)",flex:1}}>{placeholder}</span>
+                          }
+                          <select value={value} onChange={e=>onChange(e.target.value)}
+                            style={{position:"absolute",inset:0,opacity:0,width:"100%",cursor:"pointer",fontSize:14}}>
+                            <option value="">{placeholder}</option>
+                            {thirdPlaceTeams.map(({team,group})=>(
+                              <option key={team} value={team}>Gruppe {group}: {team}</option>
+                            ))}
+                          </select>
+                          <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:4}}>▼</span>
                         </div>
                       );
                       return (
-                        <div style={{padding:"10px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                          <div style={{fontSize:11,color:T.gold,marginBottom:8,fontWeight:700,letterSpacing:0.5}}>{slot.label} — Beste 3.-plass</div>
+                        <div style={{padding:"12px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                          <div style={{fontSize:11,color:T.gold,marginBottom:10,fontWeight:700,letterSpacing:0.5}}>
+                            {slot.label} — velg beste 3.-plasslagene
+                          </div>
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                            <TeamSelect value={homeVal} onChange={v=>saveTeam("home",v)} placeholder="Hjemmelag"/>
-                            <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
-                            <span style={{color:"rgba(255,255,255,0.25)",fontWeight:700}}>-</span>
-                            <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
-                            <TeamSelect value={awayVal} onChange={v=>saveTeam("away",v)} placeholder="Bortelag"/>
+                            <FlagSelect value={homeVal} onChange={v=>saveTeam("home",v)} placeholder="Hjemmelag"/>
+                            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                              <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
+                              <span style={{color:"rgba(255,255,255,0.3)",fontWeight:700}}>-</span>
+                              <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
+                            </div>
+                            <FlagSelect value={awayVal} onChange={v=>saveTeam("away",v)} placeholder="Bortelag"/>
                             {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>✓</span>}
                           </div>
-                          {thirdPlaceTeams.length===0&&(
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:6,fontStyle:"italic"}}>
-                              Legg inn alle gruppekamper first for å se 3.-plasslagene
+                          {thirdPlaceTeams.length<12&&(
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:8,fontStyle:"italic"}}>
+                              {thirdPlaceTeams.length} av 12 grupper har resultater — legg inn alle for komplett liste
                             </div>
                           )}
                         </div>
