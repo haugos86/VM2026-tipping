@@ -647,9 +647,15 @@ function RegisterView({onRegister,externalResults={},session}) {
 
   // ── AUTOFYLL ─────────────────────────────────────────────────────────────────
   const [autoFilling,setAutoFilling]=useState(false);
-  const [autoFillCount,setAutoFillCount]=useState(0);
+  const AUTOFILL_MAX=3;
+  const autofillKey=currentUser?`vm2026_autofill_${currentUser.name}`:"vm2026_autofill";
+  const [autoFillCount,setAutoFillCount]=useState(()=>{
+    try{return parseInt(localStorage.getItem(autofillKey)||"0");}catch{return 0;}
+  });
+  const autofillRemaining=Math.max(0,AUTOFILL_MAX-autoFillCount);
 
   const doAutoFill=async()=>{
+    if (autoFillCount>=AUTOFILL_MAX) return;
     setAutoFilling(true);
     try {
       // Build prompt with all matches and FIFA ranking context
@@ -739,7 +745,9 @@ Regler:
         setBonus(newBonus);
       }
 
-      setAutoFillCount(n=>n+1);
+      const newCount=autoFillCount+1;
+      setAutoFillCount(newCount);
+      try{localStorage.setItem(autofillKey,String(newCount));}catch{}
     } catch(e) {
       console.error("Autofyll feilet:",e);
       alert("Autofyll feilet: "+e.message);
@@ -851,19 +859,27 @@ Regler:
             <span style={{fontSize:12,color:autoSaveState==="error"?"#f08080":autoSaveState==="saving"?T.mint:"rgba(255,255,255,0.25)"}}>
               {autoSaveState==="error"?"⚠️ Lagring feilet — sjekk nett":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
             </span>
-            <button onClick={doAutoFill} disabled={autoFilling||isLocked} style={{
-              padding:"6px 12px",borderRadius:8,border:"1px solid rgba(240,192,90,0.35)",
-              cursor:autoFilling||isLocked?"not-allowed":"pointer",fontFamily:"inherit",
-              fontSize:11,fontWeight:700,
-              background:autoFilling?"rgba(240,192,90,0.08)":"rgba(240,192,90,0.12)",
-              color:T.gold,opacity:isLocked?0.4:1,transition:"all 0.18s",
-              display:"flex",alignItems:"center",gap:5,
-            }}>
-              {autoFilling
-                ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚽</span> Fyller ut...</>
-                : <>🎲 {autoFillCount>0?`Prøv igjen (${autoFillCount})`:"Fyll ut for meg"}</>
-              }
-            </button>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+              <button onClick={doAutoFill} disabled={autoFilling||isLocked||autofillRemaining===0} style={{
+                padding:"6px 12px",borderRadius:8,border:`1px solid ${autofillRemaining===0?"rgba(255,255,255,0.1)":"rgba(240,192,90,0.35)"}`,
+                cursor:autoFilling||isLocked||autofillRemaining===0?"not-allowed":"pointer",fontFamily:"inherit",
+                fontSize:11,fontWeight:700,
+                background:autofillRemaining===0?"rgba(255,255,255,0.04)":autoFilling?"rgba(240,192,90,0.08)":"rgba(240,192,90,0.12)",
+                color:autofillRemaining===0?"rgba(255,255,255,0.25)":T.gold,
+                opacity:isLocked?0.4:1,transition:"all 0.18s",
+                display:"flex",alignItems:"center",gap:5,
+              }}>
+                {autoFilling
+                  ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚽</span> Fyller ut...</>
+                  : autofillRemaining===0
+                    ? <>🔒 Ingen forsøk igjen</>
+                    : <>🎲 {autoFillCount>0?`Prøv igjen`:"Fyll ut for meg"}</>
+                }
+              </button>
+              {!isLocked&&<span style={{fontSize:10,color:autofillRemaining===0?"rgba(255,80,80,0.6)":"rgba(255,255,255,0.25)"}}>
+                {autofillRemaining} av {AUTOFILL_MAX} forsøk igjen
+              </span>}
+            </div>
           </div>
         </div>
 
