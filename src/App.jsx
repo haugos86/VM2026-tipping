@@ -9,7 +9,7 @@ const DEADLINE = new Date("2026-06-11T18:00:00Z");
 // FIX #10: Autosave-feil vises tydelig
 // FIX #8: Navn normaliseres til Title Case ved registrering
 function normalizeName(n) {
-  return n.trim().replace(/\s+/," ").replace(/\b\w/g,c=>c.toUpperCase());
+  return n.trim().toLowerCase().replace(/\s+/g," ").replace(/(^|\s)\S/g,c=>c.toUpperCase());
 }
 
 async function hashPin(pin) {
@@ -591,7 +591,7 @@ function RegisterView({onRegister,externalResults={},session}) {
     setAutoSaveState("saving");
     const timer=setTimeout(async()=>{
       try {
-        await sb.upsert("participants",[{...currentUser,tips,bonus}]);
+        await sb.upsertByName("participants",[{name:currentUser.name,pin_hash:currentUser.pin_hash,tips,bonus}]);
         setAutoSaveState("idle");
       } catch(e) {
         console.error("Autosave failed:",e);
@@ -614,7 +614,7 @@ function RegisterView({onRegister,externalResults={},session}) {
       const ex=await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(cleanName)}&select=name`);
       if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");setSaving(false);return;}
       const u={name:cleanName,pin_hash:ph,tips:{},bonus:{}};
-      await sb.upsert("participants",[u]);
+      await sb.upsertByName("participants",[u]);
       setCurrentUser(u);setTips({});setBonus({});onRegister(u);setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
@@ -639,8 +639,8 @@ function RegisterView({onRegister,externalResults={},session}) {
     if (isLocked){setError("Tipping er stengt — du kan ikke endre etter kampstart.");return;}
     setSaving(true);
     try {
-      await sb.upsert("participants",[{...currentUser,tips,bonus}]);
-      setMode("done");onRegister();
+      await sb.upsertByName("participants",[{name:currentUser.name,pin_hash:currentUser.pin_hash,tips,bonus}]);
+      setMode("done");
     } catch(e){setError("Feil ved lagring: "+e.message);}
     finally{setSaving(false);}
   };
