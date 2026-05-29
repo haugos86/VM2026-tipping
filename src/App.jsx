@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://cnauqnqntbywsjoyuvur.supabase.co";
@@ -562,32 +562,37 @@ function RegisterView({onRegister,externalResults={},session}) {
   const [mode,setMode]=useState(session?"editing":"choose");
   const [name,setName]=useState(""),[pin,setPin]=useState(""),[pinConfirm,setPinConfirm]=useState("");
   const [tips,setTips]=useState({}),[bonus,setBonus]=useState({});
-  // Auto-bootstrap from session on mount
-  useEffect(()=>{
-    if (session&&!currentUserRef.current) {
-      sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(session.name)}&select=*`).then(res=>{
-        if (res[0]) {
-          currentUserRef.current=res[0];
-          setCurrentUser(res[0]);
-          setTips(res[0].tips||{});
-          setBonus(res[0].bonus||{});
-        }
-      }).catch(console.error);
-    }
-  },[session]);
   const [step,setStep]=useState("group"),[currentGroup,setCurrentGroup]=useState("A");
   const [saving,setSaving]=useState(false);
   const [autoSaveState,setAutoSaveState]=useState("idle");
   const [error,setError]=useState(""),[currentUser,setCurrentUser]=useState(null);
-  const currentUserRef=useRef(null);
-  useEffect(()=>{currentUserRef.current=currentUser;},[currentUser]);
+  // "ready" gates autosave — prevents saving before session bootstrap has loaded existing tips
+  const [ready,setReady]=useState(!session);
   const locked=new Date()>=DEADLINE;
+
+  // Auto-bootstrap from session on mount (load existing tips before allowing autosave)
+  useEffect(()=>{
+    let cancelled=false;
+    if (session&&!currentUser) {
+      sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(session.name)}&select=*`).then(res=>{
+        if (cancelled) return;
+        if (res[0]) {
+          setCurrentUser(res[0]);
+          setTips(res[0].tips||{});
+          setBonus(res[0].bonus||{});
+        }
+        setReady(true);
+      }).catch(e=>{console.error(e);setReady(true);});
+    }
+    return()=>{cancelled=true;};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[session]);
 
   const setTip=(id,val)=>setTips(t=>({...t,[id]:val}));
 
-  // FIX #10: Show save errors clearly; retry on next change
+  // Autosave — only fires once bootstrap is complete (ready=true) to avoid overwriting with empty data
   useEffect(()=>{
-    if (!currentUser) return;
+    if (!currentUser||!ready) return;
     setAutoSaveState("saving");
     const timer=setTimeout(async()=>{
       try {
@@ -599,7 +604,7 @@ function RegisterView({onRegister,externalResults={},session}) {
       }
     },1500);
     return()=>clearTimeout(timer);
-  },[tips,bonus,currentUser]);
+  },[tips,bonus,currentUser,ready]);
 
   // FIX #7: Deadline enforced client-side before submit
   const isLocked=new Date()>=DEADLINE;
@@ -615,7 +620,7 @@ function RegisterView({onRegister,externalResults={},session}) {
       if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");setSaving(false);return;}
       const u={name:cleanName,pin_hash:ph,tips:{},bonus:{}};
       await sb.upsertByName("participants",[u]);
-      setCurrentUser(u);setTips({});setBonus({});onRegister(u);setMode("editing");
+      setCurrentUser(u);setTips({});setBonus({});setReady(true);onRegister(u);setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
@@ -630,7 +635,7 @@ function RegisterView({onRegister,externalResults={},session}) {
       if (res.length===0){setError("Bruker ikke funnet — sjekk stavemåten eller registrer deg.");setSaving(false);return;}
       if (res[0].pin_hash!==ph){setError("Feil PIN-kode.");setSaving(false);return;}
       const u=res[0];
-      setCurrentUser(u);setTips(u.tips||{});setBonus(u.bonus||{});onRegister(u);setMode("editing");
+      setCurrentUser(u);setTips(u.tips||{});setBonus(u.bonus||{});setReady(true);onRegister(u);setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
@@ -648,10 +653,13 @@ function RegisterView({onRegister,externalResults={},session}) {
   // ── AUTOFYLL ─────────────────────────────────────────────────────────────────
   const [autoFilling,setAutoFilling]=useState(false);
   const AUTOFILL_MAX=3;
-  const autofillKey=currentUser?`vm2026_autofill_${currentUser.name}`:"vm2026_autofill";
-  const [autoFillCount,setAutoFillCount]=useState(()=>{
-    try{return parseInt(localStorage.getItem(autofillKey)||"0");}catch{return 0;}
-  });
+  const autofillKey=currentUser?`vm2026_autofill_${currentUser.name}`:null;
+  const [autoFillCount,setAutoFillCount]=useState(0);
+  // Re-read counter from localStorage whenever the logged-in user resolves
+  useEffect(()=>{
+    if (!autofillKey){setAutoFillCount(0);return;}
+    try{setAutoFillCount(parseInt(localStorage.getItem(autofillKey)||"0"));}catch{setAutoFillCount(0);}
+  },[autofillKey]);
   const autofillRemaining=Math.max(0,AUTOFILL_MAX-autoFillCount);
 
   const doAutoFill=async()=>{
@@ -747,7 +755,7 @@ Regler:
 
       const newCount=autoFillCount+1;
       setAutoFillCount(newCount);
-      try{localStorage.setItem(autofillKey,String(newCount));}catch{}
+      if (autofillKey){try{localStorage.setItem(autofillKey,String(newCount));}catch{}}
     } catch(e) {
       console.error("Autofyll feilet:",e);
       alert("Autofyll feilet: "+e.message);
