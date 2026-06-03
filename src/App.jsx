@@ -116,11 +116,18 @@ const KNOCKOUT_SLOTS = [
 ];
 
 const BONUS_QUESTIONS = [
-  {id:"b1",text:"Hvem vinner VM?",              icon:"🏆",type:"text",  points:10},
-  {id:"b2",text:"Hvem blir toppscorer?",          icon:"⚽",type:"text",  points:8},
-  {id:"b3",text:"Antall røde kort i turneringen?",icon:"🟥",type:"number",points:6},
-  {id:"b4",text:"Antall mål i turneringen?",      icon:"📊",type:"number",points:6},
-  {id:"b5",text:"Antall mål Norge scorer totalt?",icon:"🇳🇴",type:"number",points:5},
+  {id:"b1", text:"Hvem vinner VM?",                     icon:"🏆", type:"text",   points:10},
+  {id:"b2", text:"Hvem blir toppscorer?",                icon:"⚽", type:"text",   points:8},
+  {id:"b3", text:"Hvem blir nummer 2? (finaletaper)",    icon:"🥈", type:"text",   points:8},
+  {id:"b4", text:"Hvem blir nummer 3? (bronsefinale)",   icon:"🥉", type:"text",   points:6},
+  {id:"b5", text:"Hvem blir nummer 4? (bronsefinale)",   icon:"4️⃣", type:"text",   points:5},
+  {id:"b6", text:"Hvor langt går Norge?",                icon:"🇳🇴", type:"select", points:7,
+    options:["Gruppespill (ut)","16-delsfinale","Åttendelsfinale","Kvartfinale","Semifinale","Bronsefinale","Finale (topp 2)"]},
+  {id:"b7", text:"Hvem scorer flest mål for Norge?",     icon:"🇳🇴", type:"text",   points:6},
+  {id:"b8", text:"Hvilken gruppe blir det scoret flest mål?", icon:"📊", type:"select", points:5,
+    options:["A","B","C","D","E","F","G","H","I","J","K","L"]},
+  {id:"b9", text:"Antall røde kort i turneringen?",      icon:"🟥", type:"number", points:4},
+  {id:"b10",text:"Antall mål Norge scorer totalt?",      icon:"⚽", type:"number", points:4},
 ];
 
 // Points — simplified: no advance points
@@ -700,8 +707,16 @@ Regler:
                   <span style={{marginRight:6,fontSize:15}}>{q.icon}</span>{q.text}
                   <span style={{marginLeft:8,color:T.gold,fontWeight:700,letterSpacing:0}}>{q.points}p</span>
                 </label>
-                <input type={q.type??"text"} value={bonus[q.id]??""} style={{...inputCss,marginBottom:0}}
+                {q.type==="select"?(
+                <select value={bonus[q.id]??""} onChange={e=>setBonus(b=>({...b,[q.id]:e.target.value}))}
+                  style={{...inputCss,marginBottom:0,cursor:"pointer"}}>
+                  <option value="">Velg...</option>
+                  {q.options.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              ):(
+                <input type={q.type==="number"?"number":"text"} value={bonus[q.id]??""} style={{...inputCss,marginBottom:0}}
                   onChange={e=>setBonus(b=>({...b,[q.id]:e.target.value}))}/>
+              )}
               </div>
             ))}
             {error&&<p style={{color:"#f08080",fontSize:13,marginBottom:10}}>{error}</p>}
@@ -878,7 +893,11 @@ function BonusAdminPanel({participants,bonusResults,saveBonusResult}) {
       </div>
       {q&&<div>
         <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:4}}>{q.icon} {q.text}</div>
-        <div style={{fontSize:12,color:T.muted,marginBottom:14}}>Klikk svar for å godkjenne. {saving&&<span style={{color:T.mint}}>Lagrer...</span>}</div>
+        <div style={{fontSize:12,color:T.muted,marginBottom:14}}>
+          Klikk svar for å godkjenne — alle som har skrevet akkurat det svaret får poeng.
+          For navn: godkjenn alle varianter (Haaland, E.Haaland, Erling Haaland).
+          {saving&&<span style={{color:T.mint,marginLeft:8}}>Lagrer...</span>}
+        </div>
         {answers.length===0&&<p style={{color:"rgba(255,255,255,0.3)",fontSize:13}}>Ingen svar ennå.</p>}
         <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"42vh",overflowY:"auto"}}>
           {answers.map(({raw,count,names})=>{
