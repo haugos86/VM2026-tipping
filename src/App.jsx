@@ -372,6 +372,42 @@ function DeadlineBanner() {
   </div>;
 }
 
+// Proper component for bonus select — useState must be at component level
+function BonusDropdown({value,options,onChange}) {
+  const [open,setOpen]=useState(false);
+  return (
+    <div style={{position:"relative"}}>
+      <button type="button" onClick={()=>setOpen(o=>!o)} style={{
+        width:"100%",textAlign:"left",background:"rgba(255,255,255,0.06)",
+        border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,
+        color:value?"#fff":"rgba(255,255,255,0.4)",fontSize:15,
+        padding:"12px 40px 12px 16px",fontFamily:"inherit",cursor:"pointer",
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        boxSizing:"border-box",
+      }}>
+        <span>{value||"Velg..."}</span>
+        <span style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{open?"▲":"▼"}</span>
+      </button>
+      {open&&(
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:200,
+          background:"#0e2420",border:"1px solid rgba(255,255,255,0.15)",
+          borderRadius:10,overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.6)"}}>
+          {options.map(o=>(
+            <div key={o} onClick={()=>{onChange(o);setOpen(false);}}
+              style={{padding:"11px 16px",cursor:"pointer",fontSize:14,
+                background:value===o?"rgba(42,122,106,0.3)":"transparent",
+                color:value===o?T.mint:"rgba(255,255,255,0.85)",
+                borderBottom:"1px solid rgba(255,255,255,0.05)",
+              }}>
+              {o}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── REGISTER / LOGIN / EDIT ───────────────────────────────────────────────────
 function RegisterView({onLogin,externalResults={},session}) {
   const [mode,setMode]=useState(session?"editing":"choose");
@@ -707,40 +743,9 @@ Regler:
                   <span style={{marginRight:6,fontSize:15}}>{q.icon}</span>{q.text}
                   <span style={{marginLeft:8,color:T.gold,fontWeight:700,letterSpacing:0}}>{q.points}p</span>
                 </label>
-                {q.type==="select"?(()=>{
-                const val=bonus[q.id]??"";
-                const [open,setOpen]=useState(false);
-                return (
-                  <div style={{position:"relative"}}>
-                    <button type="button" onClick={()=>setOpen(o=>!o)} style={{
-                      width:"100%",textAlign:"left",background:"rgba(255,255,255,0.06)",
-                      border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,
-                      color:val?"#fff":"rgba(255,255,255,0.4)",fontSize:15,
-                      padding:"12px 40px 12px 16px",fontFamily:"inherit",cursor:"pointer",
-                      display:"flex",alignItems:"center",justifyContent:"space-between",
-                    }}>
-                      <span>{val||"Velg..."}</span>
-                      <span style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{open?"▲":"▼"}</span>
-                    </button>
-                    {open&&(
-                      <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:100,
-                        background:"#0e2420",border:"1px solid rgba(255,255,255,0.15)",
-                        borderRadius:10,overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
-                        {q.options.map(o=>(
-                          <div key={o} onClick={()=>{setBonus(b=>({...b,[q.id]:o}));setOpen(false);}}
-                            style={{padding:"11px 16px",cursor:"pointer",fontSize:14,
-                              background:val===o?"rgba(42,122,106,0.3)":"transparent",
-                              color:val===o?T.mint:"rgba(255,255,255,0.85)",
-                              borderBottom:"1px solid rgba(255,255,255,0.05)",
-                            }}>
-                            {o}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })():(
+                {q.type==="select"?(
+                <BonusDropdown value={bonus[q.id]??""} options={q.options} onChange={v=>setBonus(b=>({...b,[q.id]:v}))}/>
+              ):(
                 <input type={q.type==="number"?"number":"text"} value={bonus[q.id]??""} style={{...inputCss,marginBottom:0}}
                   onChange={e=>setBonus(b=>({...b,[q.id]:e.target.value}))}/>
               )}
