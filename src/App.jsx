@@ -510,6 +510,8 @@ Regler:
       const newCount=autoFillCount+1;
       setAutoFillCount(newCount);
       if (autofillKey) try{localStorage.setItem(autofillKey,String(newCount));}catch{}
+      // Jump to bonus tab so user sees everything is filled
+      setStep("bonus");
     } catch(e){ console.error(e); alert("Autofyll feilet: "+e.message); }
     finally{ setAutoFilling(false); }
   };
@@ -649,7 +651,7 @@ Regler:
               background:autofillRemaining===0?"rgba(255,255,255,0.03)":"rgba(240,192,90,0.12)",
               color:autofillRemaining===0?"rgba(255,255,255,0.25)":T.gold,
             }}>
-              {autoFilling?"⚽ Fyller...":autofillRemaining===0?"🔒 Ingen forsøk":autoFillCount>0?`🎲 Prøv igjen (${autofillRemaining} igjen)`:"🎲 Fyll ut for meg"}
+              {autoFilling?"⚽ Fyller ut alle kamper...":autofillRemaining===0?"🔒 Ingen forsøk":autoFillCount>0?`🎲 Prøv igjen (${autofillRemaining} igjen)`:"🎲 Fyll ut hele kupongen"}
             </button>}
           </div>
         </div>
