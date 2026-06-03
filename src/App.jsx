@@ -71,33 +71,48 @@ function generateGroupMatches() {
 }
 const GROUP_MATCHES = generateGroupMatches(); // 72 kamper
 
+// Offisielt FIFA 2026-sluttspilloppsett (match 73–104).
+// Gruppevinnere møter beste 3.-plasser; runner-up møter runner-up.
+// "3XXXXX" = beste 3.-plass fra én av de oppgitte gruppene — bestemmes først
+// etter gruppespillet, derfor adminOnly (kan ikke tippes presist på forhånd).
 const KNOCKOUT_SLOTS = [
-  // R32 — 12 beregnede + 4 adminOnly (beste 3.-plasser)
-  {id:"r32_1", phase:"R32",label:"16-delsfinale 1", slot1:"1A",slot2:"2C"},
-  {id:"r32_2", phase:"R32",label:"16-delsfinale 2", slot1:"1B",slot2:"2D"},
-  {id:"r32_3", phase:"R32",label:"16-delsfinale 3", slot1:"1C",slot2:"2A"},
-  {id:"r32_4", phase:"R32",label:"16-delsfinale 4", slot1:"1D",slot2:"2B"},
-  {id:"r32_5", phase:"R32",label:"16-delsfinale 5", slot1:"1E",slot2:"2G"},
-  {id:"r32_6", phase:"R32",label:"16-delsfinale 6", slot1:"1F",slot2:"2H"},
-  {id:"r32_7", phase:"R32",label:"16-delsfinale 7", slot1:"1G",slot2:"2E"},
-  {id:"r32_8", phase:"R32",label:"16-delsfinale 8", slot1:"1H",slot2:"2F"},
-  {id:"r32_9", phase:"R32",label:"16-delsfinale 9", slot1:"1I",slot2:"2K"},
-  {id:"r32_10",phase:"R32",label:"16-delsfinale 10",slot1:"1J",slot2:"2L"},
-  {id:"r32_11",phase:"R32",label:"16-delsfinale 11",slot1:"1K",slot2:"2I"},
-  {id:"r32_12",phase:"R32",label:"16-delsfinale 12",slot1:"1L",slot2:"2J"},
-  // FIX #5: adminOnly-kamper kan ikke tippes av deltakere, telles ikke i poeng
-  {id:"r32_13",phase:"R32",label:"16-delsfinale 13",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
-  {id:"r32_14",phase:"R32",label:"16-delsfinale 14",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
-  {id:"r32_15",phase:"R32",label:"16-delsfinale 15",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
-  {id:"r32_16",phase:"R32",label:"16-delsfinale 16",slot1:"ADMIN",slot2:"ADMIN",adminOnly:true},
-  // R16
-  ...Array.from({length:8},(_,i)=>({id:`r16_${i+1}`,phase:"R16",label:`Åttendelsfinale ${i+1}`,slot1:`V_r32_${i*2+1}`,slot2:`V_r32_${i*2+2}`})),
-  // QF
-  ...Array.from({length:4},(_,i)=>({id:`qf${i+1}`,phase:"QF",label:`Kvartfinale ${i+1}`,slot1:`V_r16_${i*2+1}`,slot2:`V_r16_${i*2+2}`})),
-  {id:"sf1",phase:"SF",label:"Semifinale 1",slot1:"V_qf1",slot2:"V_qf2"},
-  {id:"sf2",phase:"SF",label:"Semifinale 2",slot1:"V_qf3",slot2:"V_qf4"},
-  {id:"3p", phase:"3P",label:"Bronsefinale",  slot1:"T_sf1",slot2:"T_sf2"},
-  {id:"f",  phase:"F", label:"⭐ FINALE",      slot1:"V_sf1",slot2:"V_sf2"},
+  // ── 16-DELSFINALER (Round of 32, match 73–88) ──
+  {id:"r32_1", phase:"R32",label:"16-delsfinale (M73)", slot1:"2A",slot2:"2B"},
+  {id:"r32_2", phase:"R32",label:"16-delsfinale (M74)", slot1:"1E",slot2:"3ABCDF",adminOnly:true},
+  {id:"r32_3", phase:"R32",label:"16-delsfinale (M75)", slot1:"1F",slot2:"2C"},
+  {id:"r32_4", phase:"R32",label:"16-delsfinale (M76)", slot1:"1C",slot2:"2F"},
+  {id:"r32_5", phase:"R32",label:"16-delsfinale (M77)", slot1:"1I",slot2:"3CDFGH",adminOnly:true},
+  {id:"r32_6", phase:"R32",label:"16-delsfinale (M78)", slot1:"2E",slot2:"2I"},
+  {id:"r32_7", phase:"R32",label:"16-delsfinale (M79)", slot1:"1A",slot2:"3CEFHI",adminOnly:true},
+  {id:"r32_8", phase:"R32",label:"16-delsfinale (M80)", slot1:"1L",slot2:"3EHIJK",adminOnly:true},
+  {id:"r32_9", phase:"R32",label:"16-delsfinale (M81)", slot1:"1D",slot2:"3BEFIJ",adminOnly:true},
+  {id:"r32_10",phase:"R32",label:"16-delsfinale (M82)", slot1:"1G",slot2:"3AEHIJ",adminOnly:true},
+  {id:"r32_11",phase:"R32",label:"16-delsfinale (M83)", slot1:"2K",slot2:"2L"},
+  {id:"r32_12",phase:"R32",label:"16-delsfinale (M84)", slot1:"1H",slot2:"2J"},
+  {id:"r32_13",phase:"R32",label:"16-delsfinale (M85)", slot1:"1B",slot2:"3EFGIJ",adminOnly:true},
+  {id:"r32_14",phase:"R32",label:"16-delsfinale (M86)", slot1:"1J",slot2:"2H"},
+  {id:"r32_15",phase:"R32",label:"16-delsfinale (M87)", slot1:"1K",slot2:"3DEIJL",adminOnly:true},
+  {id:"r32_16",phase:"R32",label:"16-delsfinale (M88)", slot1:"2D",slot2:"2G"},
+  // ── ÅTTENDELSFINALER (Round of 16, match 89–96) ──
+  {id:"r16_1",phase:"R16",label:"Åttendelsfinale (M89)",slot1:"V_r32_2", slot2:"V_r32_5"},
+  {id:"r16_2",phase:"R16",label:"Åttendelsfinale (M90)",slot1:"V_r32_1", slot2:"V_r32_3"},
+  {id:"r16_3",phase:"R16",label:"Åttendelsfinale (M91)",slot1:"V_r32_4", slot2:"V_r32_6"},
+  {id:"r16_4",phase:"R16",label:"Åttendelsfinale (M92)",slot1:"V_r32_7", slot2:"V_r32_8"},
+  {id:"r16_5",phase:"R16",label:"Åttendelsfinale (M93)",slot1:"V_r32_11",slot2:"V_r32_12"},
+  {id:"r16_6",phase:"R16",label:"Åttendelsfinale (M94)",slot1:"V_r32_9", slot2:"V_r32_10"},
+  {id:"r16_7",phase:"R16",label:"Åttendelsfinale (M95)",slot1:"V_r32_14",slot2:"V_r32_16"},
+  {id:"r16_8",phase:"R16",label:"Åttendelsfinale (M96)",slot1:"V_r32_13",slot2:"V_r32_15"},
+  // ── KVARTFINALER (match 97–100) ──
+  {id:"qf1",phase:"QF",label:"Kvartfinale (M97)", slot1:"V_r16_1",slot2:"V_r16_2"},
+  {id:"qf2",phase:"QF",label:"Kvartfinale (M98)", slot1:"V_r16_5",slot2:"V_r16_6"},
+  {id:"qf3",phase:"QF",label:"Kvartfinale (M99)", slot1:"V_r16_3",slot2:"V_r16_4"},
+  {id:"qf4",phase:"QF",label:"Kvartfinale (M100)",slot1:"V_r16_7",slot2:"V_r16_8"},
+  // ── SEMIFINALER (match 101–102) ──
+  {id:"sf1",phase:"SF",label:"Semifinale (M101)",slot1:"V_qf1",slot2:"V_qf2"},
+  {id:"sf2",phase:"SF",label:"Semifinale (M102)",slot1:"V_qf3",slot2:"V_qf4"},
+  // ── BRONSEFINALE (M103) & FINALE (M104) ──
+  {id:"3p", phase:"3P",label:"Bronsefinale (M103)",slot1:"T_sf1",slot2:"T_sf2"},
+  {id:"f",  phase:"F", label:"⭐ FINALE (M104)",    slot1:"V_sf1",slot2:"V_sf2"},
 ];
 
 const BONUS_QUESTIONS = [
@@ -277,14 +292,21 @@ function resolveForDisplay(slot, tips, results) {
     const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
     if (!s) return null;
 
-    // For adminOnly slots: use admin-stored team names + result score
+    // For adminOnly slots: the group-winner side resolves normally,
+    // the best-3rd side ("3XXXXX") comes from admin-stored team name.
     if (s.adminOnly) {
       const res=results[matchId];
       if (!res||res.home===""||res.away==="") return null;
       const rh=parseInt(res.home),ra=parseInt(res.away);
       if (isNaN(rh)||isNaN(ra)) return null;
-      const homeTeam=typeof results[matchId+"_home"]==="string"?results[matchId+"_home"]:null;
-      const awayTeam=typeof results[matchId+"_away"]==="string"?results[matchId+"_away"]:null;
+      const homeIsThird=/^3[A-L]+$/.test(s.slot1);
+      const awayIsThird=/^3[A-L]+$/.test(s.slot2);
+      const homeTeam=homeIsThird
+        ? (typeof results[matchId+"_home"]==="string"?results[matchId+"_home"]:null)
+        : resolveForDisplay(s.slot1,tips,results);
+      const awayTeam=awayIsThird
+        ? (typeof results[matchId+"_away"]==="string"?results[matchId+"_away"]:null)
+        : resolveForDisplay(s.slot2,tips,results);
       if (!homeTeam||!awayTeam) return null;
       return rh>=ra?homeTeam:awayTeam;
     }
@@ -477,20 +499,33 @@ function MatchRow({match,tip,onChange,readOnly,result,phase}) {
 }
 
 function KnockoutMatchRow({slot,tips,setTip,results,readOnly}) {
-  // FIX #5: adminOnly-rader er read-only for deltakere
-  if (slot.adminOnly) return (
-    <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:0.35}}>
-      <div style={{flex:1,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.4)",fontStyle:"italic"}}>Beste 3.-plass (fastsettes etter gruppespill)</div>
-      <div style={{display:"flex",alignItems:"center",gap:5}}>
-        <ScoreInput val={results?.[slot.id]?.home??""} disabled onChange={()=>{}}/>
-        <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
-        <ScoreInput val={results?.[slot.id]?.away??""} disabled onChange={()=>{}}/>
+  // adminOnly-rader: en side er gruppevinner (vises fra tips), andre er beste 3.-plass (admin)
+  if (slot.adminOnly) {
+    const homeIsThird=/^3[A-L]+$/.test(slot.slot1);
+    const awayIsThird=/^3[A-L]+$/.test(slot.slot2);
+    const homeTeam=homeIsThird?null:(resolveForDisplay?resolveForDisplay(slot.slot1,tips||{},results||{}):resolveSlot(slot.slot1,tips||{}));
+    const awayTeam=awayIsThird?null:(resolveForDisplay?resolveForDisplay(slot.slot2,tips||{},results||{}):resolveSlot(slot.slot2,tips||{}));
+    const adminHome=typeof results?.[slot.id+"_home"]==="string"?results[slot.id+"_home"]:null;
+    const adminAway=typeof results?.[slot.id+"_away"]==="string"?results[slot.id+"_away"]:null;
+    const showHome=homeTeam||adminHome;
+    const showAway=awayTeam||adminAway;
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:0.5}}>
+        <div style={{flex:1,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
+          {showHome?<><span>{showHome}</span><FlagImg team={showHome} size={14}/></>:<span style={{fontStyle:"italic",color:"rgba(255,255,255,0.35)"}}>Beste 3.-plass</span>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <ScoreInput val={results?.[slot.id]?.home??""} disabled onChange={()=>{}}/>
+          <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
+          <ScoreInput val={results?.[slot.id]?.away??""} disabled onChange={()=>{}}/>
+        </div>
+        <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",alignItems:"center",gap:5}}>
+          {showAway?<><FlagImg team={showAway} size={14}/><span>{showAway}</span></>:<span style={{fontStyle:"italic",color:"rgba(255,255,255,0.35)"}}>Beste 3.-plass</span>}
+        </div>
       </div>
-      <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,0.4)",fontStyle:"italic"}}>Beste 3.-plass</div>
-    </div>
-  );
+    );
+  }
 
-  // Use resolveForDisplay if results available (admin has entered data), else resolveSlot
   const home=resolveForDisplay?resolveForDisplay(slot.slot1,tips||{},results||{}):resolveSlot(slot.slot1,tips||{});
   const away=resolveForDisplay?resolveForDisplay(slot.slot2,tips||{},results||{}):resolveSlot(slot.slot2,tips||{});
   const tip=tips?.[slot.id];
@@ -687,7 +722,7 @@ Returner KUN gyldig JSON i dette formatet (ingen annen tekst):
   },
   "knockout": {
     "r32_1": {"home": "2", "away": "0"},
-    ... (alle sluttspillkamper unntatt r32_13 til r32_16)
+    ... (kun de tippbare sluttspillkampene listet over)
   },
   "bonus": {
     "b1": "Brasil",
@@ -705,7 +740,7 @@ Regler:
 - I sluttspill: 1-0, 2-1, 1-1, 2-0 er typisk. Maks 3-0
 - INKLUDER "3p" (bronsefinale) i knockout-objektet
 - Bonus b3=røde kort (typisk 15-25), b4=mål totalt (typisk 150-180 for 104 kamper), b5=mål Norge scorer totalt i gruppespill
-- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og alle sluttspillkamper inkludert "3p", unntatt r32_13, r32_14, r32_15, r32_16`;
+- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og de tippbare sluttspillkampene (de 8 med "beste 3.-plass" fylles av admin og skal IKKE inkluderes)`;
 
       const response=await fetch("/api/autofill",{
         method:"POST",
@@ -1122,8 +1157,14 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
                 const result2=results?.[slot.id];
                 const pts2=result2?.home!==undefined?scoreKnockout(tip2,result2,slot.phase):null;
                 if (slot.adminOnly) {
-                  const adminHome=typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:null;
-                  const adminAway=typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:null;
+                  const homeIsThird=/^3[A-L]+$/.test(slot.slot1);
+                  const awayIsThird=/^3[A-L]+$/.test(slot.slot2);
+                  const adminHome=homeIsThird
+                    ? (typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:null)
+                    : resolveForDisplay(slot.slot1,found.tips||{},results);
+                  const adminAway=awayIsThird
+                    ? (typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:null)
+                    : resolveForDisplay(slot.slot2,found.tips||{},results);
                   const hasResult=result2?.home!==undefined&&result2?.home!=="";
                   return (
                   <div key={slot.id}>
@@ -1404,7 +1445,7 @@ Returner KUN gyldig JSON (ingen annen tekst):
   },
   "knockout": {
     "r32_1": {"home": "2", "away": "0"},
-    ... alle sluttspillkamper inkludert r32_1 til r32_12, r32_13 til r32_16, r16_1 til r16_8, qf1-qf4, sf1, sf2, 3p, f
+    ... alle sluttspillkamper: r32_1 til r32_16, r16_1 til r16_8, qf1-qf4, sf1, sf2, 3p, f
   }
 }
 
@@ -1412,7 +1453,7 @@ Regler:
 - MAKS 5 mål per lag
 - Typiske resultater: 1-0, 2-1, 1-1, 2-0. Sjeldent: 3-0, 3-1
 - Favoritter vinner oftere men ikke alltid
-- For r32_13 til r32_16 (beste 3.-plasser): bruk realistiske lag som Mexico, Kroatia, Senegal, Sverige
+- De 8 beste 3.-plass-kampene (r32_2,5,7,8,9,10,13,15) har én gruppevinner og én 3.-plass — bare gi en scoreline
 - Inkluder ALLE kamper inkludert 3p (bronsefinale) og f (finale)`;
 
       const response=await fetch("/api/autofill",{
@@ -1619,28 +1660,32 @@ Regler:
                   <div key={slot.id}>
                     {show&&<PhaseHeader phase={slot.phase}/>}
                     {slot.adminOnly?(()=>{
-                      // All 12 potential 3rd-place teams from results (show all groups)
-                      const thirdPlaceTeams=Object.keys(GROUPS).map(g=>{
-                        const gMatches=GROUP_MATCHES.filter(m=>m.group===g);
-                        const played=gMatches.filter(m=>results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+                      // Beste 3.-plasslag fra de aktuelle gruppene (kun de gruppene kampen tillater)
+                      const homeIsThird=/^3[A-L]+$/.test(slot.slot1);
+                      const awayIsThird=/^3[A-L]+$/.test(slot.slot2);
+                      const thirdCode=homeIsThird?slot.slot1:slot.slot2; // f.eks "3ABCDF"
+                      const eligibleGroups=thirdCode.slice(1).split(""); // ["A","B","C","D","F"]
+                      const thirdPlaceTeams=eligibleGroups.map(g=>{
+                        const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
                         const team=computeGroupStandings(g,played>0?results:{})[2]||null;
                         return team?{team,group:g}:null;
                       }).filter(Boolean);
-                      const homeVal=typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:"";
-                      const awayVal=typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:"";
-                      const saveTeam=async(field,v)=>{
-                        setResults(r=>({...r,[slot.id+"_"+field]:v}));
-                        try{await sb.upsert("results",[{id:slot.id+"_"+field,home:v,away:""}]);}catch(err){console.error(err);}
+                      // Gruppevinner-siden beregnes automatisk
+                      const winnerSide=homeIsThird?slot.slot2:slot.slot1;
+                      const winnerTeam=resolveForDisplay(winnerSide,{},results);
+                      // Admin velger kun beste 3.-plass-laget
+                      const thirdField=homeIsThird?"home":"away";
+                      const thirdVal=typeof results[slot.id+"_"+thirdField]==="string"?results[slot.id+"_"+thirdField]:"";
+                      const saveThird=async(v)=>{
+                        setResults(r=>({...r,[slot.id+"_"+thirdField]:v}));
+                        try{await sb.upsert("results",[{id:slot.id+"_"+thirdField,home:v,away:""}]);}catch(err){console.error(err);}
                       };
-                      // Custom flag dropdown — uses a styled select with flag shown outside
                       const FlagSelect=({value,onChange,placeholder})=>(
                         <div style={{flex:"1 1 160px",position:"relative",display:"flex",alignItems:"center",gap:6,
                           background:"rgba(255,255,255,0.07)",border:`1px solid ${value?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.15)"}`,
                           borderRadius:8,padding:"6px 10px",cursor:"pointer"}}>
-                          {value
-                            ?<><FlagImg team={value} size={18}/><span style={{fontSize:13,color:"#fff",fontWeight:600,flex:1}}>{value}</span></>
-                            :<span style={{fontSize:12,color:"rgba(255,255,255,0.35)",flex:1}}>{placeholder}</span>
-                          }
+                          {value?<><FlagImg team={value} size={18}/><span style={{fontSize:13,color:"#fff",fontWeight:600,flex:1}}>{value}</span></>
+                            :<span style={{fontSize:12,color:"rgba(255,255,255,0.35)",flex:1}}>{placeholder}</span>}
                           <select value={value} onChange={e=>onChange(e.target.value)}
                             style={{position:"absolute",inset:0,opacity:0,width:"100%",cursor:"pointer",fontSize:14}}>
                             <option value="">{placeholder}</option>
@@ -1648,27 +1693,33 @@ Regler:
                               <option key={team} value={team}>Gruppe {group}: {team}</option>
                             ))}
                           </select>
-                          <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:4}}>▼</span>
+                          <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:4}}>v</span>
+                        </div>
+                      );
+                      const winnerBox=(
+                        <div style={{flex:"1 1 160px",display:"flex",alignItems:"center",gap:6,padding:"6px 10px"}}>
+                          {winnerTeam?<><FlagImg team={winnerTeam} size={18}/><span style={{fontSize:13,color:"#fff",fontWeight:600}}>{winnerTeam}</span></>
+                            :<span style={{fontSize:12,color:"rgba(255,255,255,0.3)"}}>Gruppevinner (avventer)</span>}
                         </div>
                       );
                       return (
                         <div style={{padding:"12px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
                           <div style={{fontSize:11,color:T.gold,marginBottom:10,fontWeight:700,letterSpacing:0.5}}>
-                            {slot.label} — velg beste 3.-plasslagene
+                            {slot.label} — velg beste 3.-plass ({thirdCode.slice(1).split("").join("/")})
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                            <FlagSelect value={homeVal} onChange={v=>saveTeam("home",v)} placeholder="Hjemmelag"/>
+                            {homeIsThird?<FlagSelect value={thirdVal} onChange={saveThird} placeholder="Beste 3.-plass"/>:winnerBox}
                             <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
                               <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
                               <span style={{color:"rgba(255,255,255,0.3)",fontWeight:700}}>-</span>
                               <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
                             </div>
-                            <FlagSelect value={awayVal} onChange={v=>saveTeam("away",v)} placeholder="Bortelag"/>
-                            {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>✓</span>}
+                            {awayIsThird?<FlagSelect value={thirdVal} onChange={saveThird} placeholder="Beste 3.-plass"/>:winnerBox}
+                            {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>ok</span>}
                           </div>
-                          {thirdPlaceTeams.length<12&&(
+                          {thirdPlaceTeams.length<eligibleGroups.length&&(
                             <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:8,fontStyle:"italic"}}>
-                              {thirdPlaceTeams.length} av 12 grupper har resultater — legg inn alle for komplett liste
+                              Legg inn alle gruppekampene for de aktuelle gruppene for full liste
                             </div>
                           )}
                         </div>
