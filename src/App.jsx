@@ -1,19 +1,16 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const SUPABASE_URL = "https://cnauqnqntbywsjoyuvur.supabase.co";
+const SUPABASE_URL  = "https://cnauqnqntbywsjoyuvur.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuYXVxbnFudGJ5d3Nqb3l1dnVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDc5NTEsImV4cCI6MjA5NDc4Mzk1MX0.IPxbGJIFhoc_CMJXsbxPMqHc9oPDEQxYXib4ogg2nvM";
-const ADMIN_PIN = "vm2026"; // FIX #9: still in code but "Standard PIN"-tekst fjernet fra UI
-const DEADLINE = new Date("2026-06-11T18:00:00Z");
+const ADMIN_PIN  = "vm2026";
+const DEADLINE   = new Date("2026-06-11T18:00:00Z");
 
-// FIX #10: Autosave-feil vises tydelig
-// FIX #8: Navn normaliseres til Title Case ved registrering
 function normalizeName(n) {
   return n.trim().toLowerCase().replace(/\s+/g," ").replace(/(^|\s)\S/g,c=>c.toUpperCase());
 }
-
 async function hashPin(pin) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pin + "vm2026salt"));
+  const buf = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pin+"vm2026salt"));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,16);
 }
 
@@ -33,7 +30,6 @@ const GROUPS = {
   L:["England","Kroatia","Panama","Ghana"],
 };
 
-// FIX #4: Complete FLAG_CODE with direct Norwegian names
 const FLAG_CODE = {
   "Mexico":"mx","Sør-Korea":"kr","Sør-Afrika":"za","Tsjekkia":"cz",
   "Canada":"ca","Sveits":"ch","Qatar":"qa","Bosnia-Hercegovina":"ba",
@@ -48,71 +44,75 @@ const FLAG_CODE = {
   "Portugal":"pt","Colombia":"co","Usbekistan":"uz","DR Kongo":"cd",
   "England":"gb-eng","Kroatia":"hr","Panama":"pa","Ghana":"gh",
 };
-
 function FlagImg({team,size=20}) {
-  const code = FLAG_CODE[team];
-  if (!code) return <span style={{fontSize:size*0.85,lineHeight:1,display:"inline-block",verticalAlign:"middle"}}>🏳️</span>;
-  return (
-    <img src={`https://flagcdn.com/w${size*2}/${code}.png`} alt={team} width={size}
-      height={Math.round(size*0.67)}
-      style={{objectFit:"cover",borderRadius:2,verticalAlign:"middle",display:"inline-block",flexShrink:0}}
-      onError={e=>{e.target.style.display="none";}}/>
-  );
+  const code=FLAG_CODE[team];
+  if (!code) return null;
+  return <img src={`https://flagcdn.com/w${size*2}/${code}.png`} alt={team} width={size}
+    height={Math.round(size*0.67)} style={{objectFit:"cover",borderRadius:2,verticalAlign:"middle",flexShrink:0}}
+    onError={e=>{e.target.style.display="none";}}/>;
 }
 
 function generateGroupMatches() {
   const m=[]; let id=1;
   Object.entries(GROUPS).forEach(([g,teams])=>{
     [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]].forEach(([a,b])=>{
-      m.push({id:`g${id++}`,group:g,home:teams[a],away:teams[b],phase:"group"});
+      m.push({id:`g${id++}`,group:g,home:teams[a],away:teams[b]});
     });
   });
   return m;
 }
-const GROUP_MATCHES = generateGroupMatches(); // 72 kamper
+const GROUP_MATCHES = generateGroupMatches(); // 72 matches
 
-// Offisielt FIFA 2026-sluttspilloppsett (match 73–104).
-// Alle 16 kamper kan tippes av deltakere.
-// "3XXXXX" = beste 3.-plass — admin fyller inn faktisk lag etter gruppespillet.
-// Deltakere tipper scoreline; poeng gis for riktig utfall/lag videre uansett.
+// Readable label for a slot code
+function slotLabel(code) {
+  if (!code) return "?";
+  if (/^1[A-L]$/.test(code)) return `Vinner gr.${code[1]}`;
+  if (/^2[A-L]$/.test(code)) return `Nr.2 gr.${code[1]}`;
+  if (/^3[A-L]+$/.test(code)) return `Beste 3. (${code.slice(1).split("").join("/")})`;
+  if (/^V_(.+)$/.test(code)) return `Vinner ${code.slice(2)}`;
+  if (/^T_(.+)$/.test(code)) return `Taper ${code.slice(2)}`;
+  return code;
+}
+
+// All knockout matches — slot codes only, no chain resolution
 const KNOCKOUT_SLOTS = [
-  // ── 16-DELSFINALER (Round of 32, match 73–88) ──
-  {id:"r32_1", phase:"R32",label:"16-delsfinale (M73)", slot1:"2A",  slot2:"2B"},
-  {id:"r32_2", phase:"R32",label:"16-delsfinale (M74)", slot1:"1E",  slot2:"3ABCDF", thirdSlot:"away"},
-  {id:"r32_3", phase:"R32",label:"16-delsfinale (M75)", slot1:"1F",  slot2:"2C"},
-  {id:"r32_4", phase:"R32",label:"16-delsfinale (M76)", slot1:"1C",  slot2:"2F"},
-  {id:"r32_5", phase:"R32",label:"16-delsfinale (M77)", slot1:"1I",  slot2:"3CDFGH", thirdSlot:"away"},
-  {id:"r32_6", phase:"R32",label:"16-delsfinale (M78)", slot1:"2E",  slot2:"2I"},
-  {id:"r32_7", phase:"R32",label:"16-delsfinale (M79)", slot1:"1A",  slot2:"3CEFHI", thirdSlot:"away"},
-  {id:"r32_8", phase:"R32",label:"16-delsfinale (M80)", slot1:"1L",  slot2:"3EHIJK", thirdSlot:"away"},
-  {id:"r32_9", phase:"R32",label:"16-delsfinale (M81)", slot1:"1D",  slot2:"3BEFIJ", thirdSlot:"away"},
-  {id:"r32_10",phase:"R32",label:"16-delsfinale (M82)", slot1:"1G",  slot2:"3AEHIJ", thirdSlot:"away"},
-  {id:"r32_11",phase:"R32",label:"16-delsfinale (M83)", slot1:"2K",  slot2:"2L"},
-  {id:"r32_12",phase:"R32",label:"16-delsfinale (M84)", slot1:"1H",  slot2:"2J"},
-  {id:"r32_13",phase:"R32",label:"16-delsfinale (M85)", slot1:"1B",  slot2:"3EFGIJ", thirdSlot:"away"},
-  {id:"r32_14",phase:"R32",label:"16-delsfinale (M86)", slot1:"1J",  slot2:"2H"},
-  {id:"r32_15",phase:"R32",label:"16-delsfinale (M87)", slot1:"1K",  slot2:"3DEIJL", thirdSlot:"away"},
-  {id:"r32_16",phase:"R32",label:"16-delsfinale (M88)", slot1:"2D",  slot2:"2G"},
-  // ── ÅTTENDELSFINALER (Round of 16, match 89–96) ──
-  {id:"r16_1",phase:"R16",label:"Åttendelsfinale (M89)",slot1:"V_r32_2", slot2:"V_r32_5"},
-  {id:"r16_2",phase:"R16",label:"Åttendelsfinale (M90)",slot1:"V_r32_1", slot2:"V_r32_3"},
-  {id:"r16_3",phase:"R16",label:"Åttendelsfinale (M91)",slot1:"V_r32_4", slot2:"V_r32_6"},
-  {id:"r16_4",phase:"R16",label:"Åttendelsfinale (M92)",slot1:"V_r32_7", slot2:"V_r32_8"},
-  {id:"r16_5",phase:"R16",label:"Åttendelsfinale (M93)",slot1:"V_r32_11",slot2:"V_r32_12"},
-  {id:"r16_6",phase:"R16",label:"Åttendelsfinale (M94)",slot1:"V_r32_9", slot2:"V_r32_10"},
-  {id:"r16_7",phase:"R16",label:"Åttendelsfinale (M95)",slot1:"V_r32_14",slot2:"V_r32_16"},
-  {id:"r16_8",phase:"R16",label:"Åttendelsfinale (M96)",slot1:"V_r32_13",slot2:"V_r32_15"},
-  // ── KVARTFINALER (match 97–100) ──
-  {id:"qf1",phase:"QF",label:"Kvartfinale (M97)", slot1:"V_r16_1",slot2:"V_r16_2"},
-  {id:"qf2",phase:"QF",label:"Kvartfinale (M98)", slot1:"V_r16_5",slot2:"V_r16_6"},
-  {id:"qf3",phase:"QF",label:"Kvartfinale (M99)", slot1:"V_r16_3",slot2:"V_r16_4"},
-  {id:"qf4",phase:"QF",label:"Kvartfinale (M100)",slot1:"V_r16_7",slot2:"V_r16_8"},
-  // ── SEMIFINALER (match 101–102) ──
-  {id:"sf1",phase:"SF",label:"Semifinale (M101)",slot1:"V_qf1",slot2:"V_qf2"},
-  {id:"sf2",phase:"SF",label:"Semifinale (M102)",slot1:"V_qf3",slot2:"V_qf4"},
-  // ── BRONSEFINALE (M103) & FINALE (M104) ──
-  {id:"3p", phase:"3P",label:"Bronsefinale (M103)",slot1:"T_sf1",slot2:"T_sf2"},
-  {id:"f",  phase:"F", label:"⭐ FINALE (M104)",    slot1:"V_sf1",slot2:"V_sf2"},
+  // 16-delsfinaler (M73-M88)
+  {id:"r32_1", phase:"R32",label:"M73", home:"2A",   away:"2B"},
+  {id:"r32_2", phase:"R32",label:"M74", home:"1E",   away:"3A/B/C/D/F"},
+  {id:"r32_3", phase:"R32",label:"M75", home:"1F",   away:"2C"},
+  {id:"r32_4", phase:"R32",label:"M76", home:"1C",   away:"2F"},
+  {id:"r32_5", phase:"R32",label:"M77", home:"1I",   away:"3C/D/F/G/H"},
+  {id:"r32_6", phase:"R32",label:"M78", home:"2E",   away:"2I"},
+  {id:"r32_7", phase:"R32",label:"M79", home:"1A",   away:"3C/E/F/H/I"},
+  {id:"r32_8", phase:"R32",label:"M80", home:"1L",   away:"3E/H/I/J/K"},
+  {id:"r32_9", phase:"R32",label:"M81", home:"1D",   away:"3B/E/F/I/J"},
+  {id:"r32_10",phase:"R32",label:"M82", home:"1G",   away:"3A/E/H/I/J"},
+  {id:"r32_11",phase:"R32",label:"M83", home:"2K",   away:"2L"},
+  {id:"r32_12",phase:"R32",label:"M84", home:"1H",   away:"2J"},
+  {id:"r32_13",phase:"R32",label:"M85", home:"1B",   away:"3E/F/G/I/J"},
+  {id:"r32_14",phase:"R32",label:"M86", home:"1J",   away:"2H"},
+  {id:"r32_15",phase:"R32",label:"M87", home:"1K",   away:"3D/E/I/J/L"},
+  {id:"r32_16",phase:"R32",label:"M88", home:"2D",   away:"2G"},
+  // Åttendelsfinaler (M89-M96)
+  {id:"r16_1",phase:"R16",label:"M89", home:"V_M74", away:"V_M77"},
+  {id:"r16_2",phase:"R16",label:"M90", home:"V_M73", away:"V_M75"},
+  {id:"r16_3",phase:"R16",label:"M91", home:"V_M76", away:"V_M78"},
+  {id:"r16_4",phase:"R16",label:"M92", home:"V_M79", away:"V_M80"},
+  {id:"r16_5",phase:"R16",label:"M93", home:"V_M83", away:"V_M84"},
+  {id:"r16_6",phase:"R16",label:"M94", home:"V_M81", away:"V_M82"},
+  {id:"r16_7",phase:"R16",label:"M95", home:"V_M86", away:"V_M88"},
+  {id:"r16_8",phase:"R16",label:"M96", home:"V_M85", away:"V_M87"},
+  // Kvartfinaler (M97-M100)
+  {id:"qf1",phase:"QF",label:"M97",  home:"V_M89", away:"V_M90"},
+  {id:"qf2",phase:"QF",label:"M98",  home:"V_M93", away:"V_M94"},
+  {id:"qf3",phase:"QF",label:"M99",  home:"V_M91", away:"V_M92"},
+  {id:"qf4",phase:"QF",label:"M100", home:"V_M95", away:"V_M96"},
+  // Semifinaler (M101-M102)
+  {id:"sf1",phase:"SF",label:"M101", home:"V_M97", away:"V_M98"},
+  {id:"sf2",phase:"SF",label:"M102", home:"V_M99", away:"V_M100"},
+  // Bronsefinale & Finale
+  {id:"3p",phase:"3P",label:"M103",  home:"T_M101",away:"T_M102"},
+  {id:"f", phase:"F", label:"⭐M104", home:"V_M101",away:"V_M102"},
 ];
 
 const BONUS_QUESTIONS = [
@@ -123,21 +123,22 @@ const BONUS_QUESTIONS = [
   {id:"b5",text:"Antall mål Norge scorer totalt?",icon:"🇳🇴",type:"number",points:5},
 ];
 
+// Points — simplified: no advance points
 const PTS = {
-  group:  {exact:3,outcome:1},
-  R32:    {exact:3,outcome:1,advance:2},
-  R16:    {exact:4,outcome:2,advance:3},
-  QF:     {exact:5,outcome:2,advance:4},
-  SF:     {exact:6,outcome:3,advance:5},
-  "3P":   {exact:4,outcome:2,advance:0},
-  F:      {exact:8,outcome:4,advance:8},
+  group: {exact:3,outcome:1},
+  R32:   {exact:3,outcome:1},
+  R16:   {exact:4,outcome:2},
+  QF:    {exact:5,outcome:2},
+  SF:    {exact:6,outcome:3},
+  "3P":  {exact:4,outcome:2},
+  F:     {exact:8,outcome:4},
   groupRank:{first:4,second:3,third:2},
 };
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const sb = {
   async query(table,method="GET",body=null,filter="") {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${filter}`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${filter}`,{
       method,
       headers:{
         "Content-Type":"application/json",
@@ -150,262 +151,75 @@ const sb = {
     if (!res.ok) throw new Error(await res.text());
     return res.status===204?[]:res.json();
   },
-  getAll:      t=>sb.query(t,"GET",null,"?select=*"),
-  upsert:      (t,b)=>sb.query(t,"POST",b,"?on_conflict=id"),
-  upsertByName:(t,b)=>sb.query(t,"POST",b,"?on_conflict=name"),
+  getAll:       t=>sb.query(t,"GET",null,"?select=*"),
+  upsert:       (t,b)=>sb.query(t,"POST",b,"?on_conflict=id"),
+  upsertByName: (t,b)=>sb.query(t,"POST",b,"?on_conflict=name"),
 };
 
 // ── SCORING ───────────────────────────────────────────────────────────────────
-function matchOutcome(h,a){ if(h>a) return "H"; if(a>h) return "A"; return "D"; }
+function matchOutcome(h,a){ return h>a?"H":a>h?"A":"D"; }
 
-function scoreGroupMatch(tip,result) {
-  if (!tip||!result||tip.home===""||tip.away===""||result.home===""||result.away==="") return null;
+function scoreMatch(tip,result,phase) {
+  if (!tip||!result||tip.home===""||tip.away===""||
+      result.home===""||result.away==="") return null;
   const [th,ta,rh,ra]=[tip.home,tip.away,result.home,result.away].map(Number);
   if ([th,ta,rh,ra].some(isNaN)) return null;
-  if (th===rh&&ta===ra) return PTS.group.exact;
-  if (matchOutcome(th,ta)===matchOutcome(rh,ra)) return PTS.group.outcome;
-  return 0;
-}
-
-// FIX #2: Knockout har ikke uavgjort — 1-1 betyr hjemmelaget vinner (på straffer).
-// Vi scorer basert på hvem du tippet ville vinne (h>a = hjemme, h<a = borte, h=a = hjemme).
-function scoreKnockout(tip,result,phase) {
-  if (!tip||!result||tip.home===""||tip.away===""||result.home===""||result.away==="") return null;
-  const [th,ta,rh,ra]=[tip.home,tip.away,result.home,result.away].map(Number);
-  if ([th,ta,rh,ra].some(isNaN)) return null;
-  const cfg = PTS[phase]||PTS.R32;
+  const cfg = PTS[phase]||PTS.group;
   if (th===rh&&ta===ra) return cfg.exact;
-  // Utfall: hvem tippet du ville vinne? (uavgjort = hjemme)
-  const tipWins  = th>=ta?"home":"away";
-  const realWins = rh>=ra?"home":"away";
-  if (tipWins===realWins) return cfg.outcome;
+  // Knockout: draw = home wins (pens) — outcome only H or A
+  const tipOut  = phase==="group"?matchOutcome(th,ta):(th>=ta?"H":"A");
+  const realOut = phase==="group"?matchOutcome(rh,ra):(rh>=ra?"H":"A");
+  if (tipOut===realOut) return cfg.outcome;
   return 0;
 }
 
-// Utled vinner fra resultat (brukes til advance-poeng)
-function inferWinner(result,slot,tips,results) {
-  if (!result||result.home===""||result.away==="") return null;
-  const rh=Number(result.home),ra=Number(result.away);
-  if (isNaN(rh)||isNaN(ra)) return null;
-  // For thirdSlot matches use stored team name for the best-third side
-  if (slot.thirdSlot&&results) {
-    const homeTeam=slot.thirdSlot==="home"
-      ? (typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:resolveSlot(slot.slot1,tips))
-      : resolveSlot(slot.slot1,tips);
-    const awayTeam=slot.thirdSlot==="away"
-      ? (typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:resolveSlot(slot.slot2,tips))
-      : resolveSlot(slot.slot2,tips);
-    return rh>=ra?homeTeam:awayTeam;
-  }
-  const homeTeam=resolveSlot(slot.slot1,tips);
-  const awayTeam=resolveSlot(slot.slot2,tips);
-  return rh>=ra?homeTeam:awayTeam;
-}
-
-// Beregn gruppestandings fra et tips/results-objekt
-function computeGroupStandings(groupId,tipsOrResults) {
+function computeGroupStandings(groupId,src) {
   const teams=GROUPS[groupId];
   const stats=Object.fromEntries(teams.map(t=>[t,{pts:0,gd:0,gf:0}]));
   GROUP_MATCHES.filter(m=>m.group===groupId).forEach(m=>{
-    const r=tipsOrResults[m.id];
+    const r=src[m.id];
     if (!r||r.home===""||r.away==="") return;
     const h=parseInt(r.home),a=parseInt(r.away);
     if (isNaN(h)||isNaN(a)) return;
     if (h>a){stats[m.home].pts+=3;}
     else if (a>h){stats[m.away].pts+=3;}
     else{stats[m.home].pts+=1;stats[m.away].pts+=1;}
-    stats[m.home].gf+=h;stats[m.home].gd+=(h-a);
-    stats[m.away].gf+=a;stats[m.away].gd+=(a-h);
+    stats[m.home].gf+=h; stats[m.home].gd+=(h-a);
+    stats[m.away].gf+=a; stats[m.away].gd+=(a-h);
   });
   return teams.slice().sort((a,b)=>
     stats[b].pts-stats[a].pts||stats[b].gd-stats[a].gd||stats[b].gf-stats[a].gf
   );
 }
 
-// Manual group rank overrides set by admin: { "A": ["Mexico","Sør-Korea","Sør-Afrika","Tsjekkia"], ... }
-// Stored in results as id="override_A", home=JSON
-let GROUP_OVERRIDES = {};
-function setGroupOverride(group, ranking) {
-  GROUP_OVERRIDES = {...GROUP_OVERRIDES, [group]: ranking};
-}
-function getGroupRanking(group, tipsOrResults) {
-  // Admin override takes priority
-  if (GROUP_OVERRIDES[group]&&GROUP_OVERRIDES[group].length===4) return GROUP_OVERRIDES[group];
-  return computeGroupStandings(group, tipsOrResults);
-}
-
-function resolveSlot(slot,tips) {
-  if (!slot||slot==="ADMIN") return null;
-  // Best-third placeholder: "3ABCDF" — show descriptive label so input is enabled
-  if (/^3[A-L]+$/.test(slot)) return `Beste 3.-plass (${slot.slice(1).split("").join("/")})`;
-  const rankMatch=slot.match(/^([123])([A-L])$/);
-  if (rankMatch) {
-    const rank=parseInt(rankMatch[1])-1;
-    const group=rankMatch[2];
-    const tipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
-    if (tipped===0) return null;
-    // For participant tips: use computed standings (no override)
-    return computeGroupStandings(group,tips)[rank]||null;
-  }
-  const winMatch=slot.match(/^V_(.+)$/);
-  if (winMatch) {
-    const matchId=winMatch[1];
-    const t=tips[matchId];
-    if (!t||t.home===""||t.away==="") return null;
-    const h=parseInt(t.home),a=parseInt(t.away);
-    if (isNaN(h)||isNaN(a)) return null;
-    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
-    if (!s) return null;
-    const home=resolveSlot(s.slot1,tips);
-    const away=resolveSlot(s.slot2,tips);
-    return h>=a?home:away; // FIX #2: uavgjort = hjemme
-  }
-  const loseMatch=slot.match(/^T_(.+)$/);
-  if (loseMatch) {
-    const matchId=loseMatch[1];
-    const t=tips[matchId];
-    if (!t||t.home===""||t.away==="") return null;
-    const h=parseInt(t.home),a=parseInt(t.away);
-    if (isNaN(h)||isNaN(a)) return null;
-    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
-    if (!s) return null;
-    const home=resolveSlot(s.slot1,tips);
-    const away=resolveSlot(s.slot2,tips);
-    return h<a?home:away; // taper
-  }
-  return slot;
-}
-
-// resolveForDisplay: like resolveSlot but uses admin results+teamnames for adminOnly slots
-// This powers "Mine tips" so the full bracket shows real team names
-function resolveForDisplay(slot, tips, results) {
-  if (!slot||slot==="ADMIN") return null;
-
-  // Best-third placeholder: use admin-stored name if set, else descriptive label
-  if (/^3[A-L]+$/.test(slot)) {
-    // Check if admin has stored the actual team name in a parent slot
-    // (stored as slot.id + "_home" or "_away" in results)
-    // For direct resolution we just return the placeholder — parent slot handles actual name
-    return `Beste 3.-plass (${slot.slice(1).split("").join("/")})`;
-  }
-  // Group rank: same as resolveSlot
-  const rankMatch=slot.match(/^([123])([A-L])$/);
-  if (rankMatch) {
-    const rank=parseInt(rankMatch[1])-1;
-    const group=rankMatch[2];
-    // Use admin results if available, else participant tips
-    const adminPlayed=GROUP_MATCHES.filter(m=>m.group===group&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
-    if (adminPlayed>0) {
-      const override=GROUP_OVERRIDES[group];
-      return override&&override.length===4?override[rank]:computeGroupStandings(group,results)[rank]||null;
-    }
-    const tipped=GROUP_MATCHES.filter(m=>m.group===group&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
-    if (tipped===0) return null;
-    return computeGroupStandings(group,tips)[rank]||null;
-  }
-
-  // Winner of a match
-  const winMatch=slot.match(/^V_(.+)$/);
-  if (winMatch) {
-    const matchId=winMatch[1];
-    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
-    if (!s) return null;
-
-    // For thirdSlot matches: one side is a group-winner (resolves normally),
-    // the other is a best-third team (use admin-stored name if set).
-    if (s.thirdSlot) {
-      const res=results[matchId];
-      if (!res||res.home===""||res.away==="") return null;
-      const rh=parseInt(res.home),ra=parseInt(res.away);
-      if (isNaN(rh)||isNaN(ra)) return null;
-      const homeIsThird=s.thirdSlot==="home";
-      const homeTeam=homeIsThird
-        ? (typeof results[matchId+"_home"]==="string"?results[matchId+"_home"]:null)
-        : resolveForDisplay(s.slot1,tips,results);
-      const awayTeam=!homeIsThird
-        ? (typeof results[matchId+"_away"]==="string"?results[matchId+"_away"]:null)
-        : resolveForDisplay(s.slot2,tips,results);
-      if (!homeTeam||!awayTeam) return null;
-      return rh>=ra?homeTeam:awayTeam;
-    }
-
-    // For normal slots: prefer admin result, fall back to participant tip
-    const res=results[matchId];
-    const tip=tips[matchId];
-    const score=res?.home!==undefined&&res?.home!==""?res:tip;
-    if (!score||score.home===""||score.away==="") return null;
-    const h=parseInt(score.home),a=parseInt(score.away);
-    if (isNaN(h)||isNaN(a)) return null;
-    const home=resolveForDisplay(s.slot1,tips,results);
-    const away=resolveForDisplay(s.slot2,tips,results);
-    return h>=a?home:away;
-  }
-
-  // Loser of a match (for bronsefinale)
-  const loseMatch=slot.match(/^T_(.+)$/);
-  if (loseMatch) {
-    const matchId=loseMatch[1];
-    const s=KNOCKOUT_SLOTS.find(s=>s.id===matchId);
-    if (!s) return null;
-    const res=results[matchId];
-    const tip=tips[matchId];
-    const score=res?.home!==undefined&&res?.home!==""?res:tip;
-    if (!score||score.home===""||score.away==="") return null;
-    const h=parseInt(score.home),a=parseInt(score.away);
-    if (isNaN(h)||isNaN(a)) return null;
-    const home=resolveForDisplay(s.slot1,tips,results);
-    const away=resolveForDisplay(s.slot2,tips,results);
-    return h<a?home:away;
-  }
-
-  return slot;
-}
-
 function calcTotal(p,results,bonusResults) {
   let pts=0;
   const tips=p.tips||{};
 
-  // Gruppekamper
+  // Group matches
   GROUP_MATCHES.forEach(m=>{
-    const s=scoreGroupMatch(tips[m.id],results[m.id]);
+    const s=scoreMatch(tips[m.id],results[m.id],"group");
     if (s!==null) pts+=s;
   });
 
-  // Grupperanking — bare gi poeng når ALLE 6 kamper i gruppen er spilt
+  // Group rankings — only when all 6 results are in
   Object.keys(GROUPS).forEach(g=>{
-    const groupMatchIds=GROUP_MATCHES.filter(m=>m.group===g).map(m=>m.id);
-    const resultsInGroup=groupMatchIds.filter(id=>results[id]?.home!==undefined&&results[id]?.home!=="").length;
-    if (resultsInGroup<6) return; // ikke ferdig
-    const tippedInGroup=groupMatchIds.filter(id=>tips[id]?.home!==undefined&&tips[id]?.home!=="").length;
-    if (tippedInGroup===0) return;
-    // Use override if admin has set one, otherwise compute from results
-    const actual=GROUP_OVERRIDES[g]&&GROUP_OVERRIDES[g].length===4
+    const ids=GROUP_MATCHES.filter(m=>m.group===g).map(m=>m.id);
+    if (ids.filter(id=>results[id]?.home!==undefined&&results[id]?.home!=="").length<6) return;
+    if (ids.filter(id=>tips[id]?.home!==undefined&&tips[id]?.home!=="").length===0) return;
+    const actual = GROUP_OVERRIDES[g]?.length===4
       ? GROUP_OVERRIDES[g]
       : computeGroupStandings(g,results);
-    const tipped=computeGroupStandings(g,tips);
+    const tipped = computeGroupStandings(g,tips);
     if (actual[0]&&tipped[0]===actual[0]) pts+=PTS.groupRank.first;
     if (actual[1]&&tipped[1]===actual[1]) pts+=PTS.groupRank.second;
     if (actual[2]&&tipped[2]===actual[2]) pts+=PTS.groupRank.third;
   });
 
-  // Sluttspill
+  // Knockout — just score the result, no advance points
   KNOCKOUT_SLOTS.forEach(slot=>{
-    // thirdSlot-kamper gir poeng normalt — deltakere tipper scoreline
-    // advance-poeng krever at admin har registrert faktisk lag
-    const tip=tips[slot.id];
-    const res=results[slot.id];
-    const s=scoreKnockout(tip,res,slot.phase);
+    const s=scoreMatch(tips[slot.id],results[slot.id],slot.phase);
     if (s!==null) pts+=s;
-    // FIX #1: Advance-poeng — bruk inferWinner fra resultater, ikke res.winner
-    const cfg=PTS[slot.phase];
-    if (cfg&&cfg.advance>0&&res&&tip) {
-      const th=parseInt(tip.home),ta=parseInt(tip.away);
-      if (!isNaN(th)&&!isNaN(ta)) {
-        const tipWinnerTeam=th>=ta?resolveSlot(slot.slot1,tips):resolveSlot(slot.slot2,tips);
-        const actualWinnerTeam=inferWinner(res,slot,tips,results);
-        if (tipWinnerTeam&&actualWinnerTeam&&tipWinnerTeam===actualWinnerTeam) pts+=cfg.advance;
-      }
-    }
   });
 
   // Bonus
@@ -415,15 +229,18 @@ function calcTotal(p,results,bonusResults) {
     const tipNorm=tip.toString().trim().toLowerCase();
     const approved=bonusResults[q.id]?.approved||[];
     const legacy=bonusResults[q.id]?.answer;
-    const ok=approved.some(a=>a.toString().trim().toLowerCase()===tipNorm)
-      ||(legacy&&tipNorm===legacy.toString().trim().toLowerCase());
-    if (ok) pts+=q.points;
+    if (approved.some(a=>a.toString().trim().toLowerCase()===tipNorm)||
+        (legacy&&tipNorm===legacy.toString().trim().toLowerCase()))
+      pts+=q.points;
   });
-
   return pts;
 }
 
-// ── DESIGN ────────────────────────────────────────────────────────────────────
+// ── GROUP OVERRIDES (admin tiebreak) ─────────────────────────────────────────
+let GROUP_OVERRIDES = {};
+function setGroupOverride(group,ranking){ GROUP_OVERRIDES={...GROUP_OVERRIDES,[group]:ranking}; }
+
+// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 const T={teal:"#2a7a6a",mint:"#7ec8a0",gold:"#f0c05a",muted:"rgba(255,255,255,0.45)"};
 const inputCss={display:"block",width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,color:"#fff",fontSize:15,padding:"12px 16px",fontFamily:"inherit",marginBottom:14,outline:"none"};
 const labelCss={display:"block",fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase",marginBottom:6};
@@ -449,65 +266,48 @@ function ScoreInput({val,onChange,disabled}) {
     fontSize:16,fontFamily:"inherit",outline:"none",opacity:disabled?0.5:1}}/>;
 }
 
-function GroupBanner({group}) {
-  return (
-    <div style={{margin:"18px 0 4px",padding:"8px 12px",background:"rgba(42,122,106,0.1)",border:"1px solid rgba(42,122,106,0.2)",borderRadius:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-      <span style={{fontSize:11,fontWeight:800,letterSpacing:2,color:T.mint,textTransform:"uppercase"}}>Gruppe {group}</span>
-      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-        {GROUPS[group].map(t=>(
-          <span key={t} style={{fontSize:13,color:"rgba(255,255,255,0.7)",display:"flex",alignItems:"center",gap:4}}>
-            <FlagImg team={t}/> {t}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function PhaseHeader({phase}) {
   const labels={R32:"16-delsfinaler",R16:"Åttendelsfinaler",QF:"Kvartfinaler",SF:"Semifinaler","3P":"Bronsefinale",F:"⭐ FINALE",BONUS:"Bonusspørsmål"};
-  return (
-    <div style={{margin:"24px 0 6px",padding:"6px 12px",background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.18)",borderRadius:8,fontSize:11,fontWeight:800,letterSpacing:2,color:T.gold,textTransform:"uppercase"}}>
-      {labels[phase]??phase}
-    </div>
-  );
+  return <div style={{margin:"20px 0 6px",padding:"6px 12px",background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.18)",borderRadius:8,fontSize:11,fontWeight:800,letterSpacing:2,color:T.gold,textTransform:"uppercase"}}>{labels[phase]??phase}</div>;
 }
 
-function MatchRow({match,tip,onChange,readOnly,result,phase}) {
+function GroupBanner({group}) {
+  return <div style={{margin:"16px 0 4px",padding:"8px 12px",background:"rgba(42,122,106,0.1)",border:"1px solid rgba(42,122,106,0.2)",borderRadius:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+    <span style={{fontSize:11,fontWeight:800,letterSpacing:2,color:T.mint,textTransform:"uppercase"}}>Gruppe {group}</span>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      {GROUPS[group].map(t=>(
+        <span key={t} style={{fontSize:13,color:"rgba(255,255,255,0.7)",display:"flex",alignItems:"center",gap:4}}>
+          <FlagImg team={t}/> {t}
+        </span>
+      ))}
+    </div>
+  </div>;
+}
+
+// Group match row — with flags for known teams
+function MatchRow({match,tip,onChange,readOnly,result}) {
   const pts = result?.home!==undefined&&result?.away!==undefined
-    ?(phase==="group"?scoreGroupMatch(tip,result):scoreKnockout(tip,result,phase)):null;
-  const exactPts = phase==="group"?PTS.group.exact:(PTS[phase]||PTS.R32).exact;
+    ? scoreMatch(tip,result,"group") : null;
+  const exact = pts===PTS.group.exact;
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"7px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
       <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
         <strong>{match.home}</strong><FlagImg team={match.home}/>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
-        {readOnly?(
+        {readOnly ? (
           <>
-            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)",letterSpacing:1}}>
-              {tip?.home??"–"}–{tip?.away??"–"}
-            </div>
-            {result?.home!==undefined&&result?.home!==""&&(
-              <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
-                {result.home}–{result.away}
-              </div>
-            )}
+            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
+            {result?.home!==undefined&&result?.home!==""&&<div style={{minWidth:44,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>{result.home}–{result.away}</div>}
           </>
-        ):(
+        ) : (
           <>
             <ScoreInput val={tip?.home??""} onChange={v=>onChange({...tip,home:v})}/>
             <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
             <ScoreInput val={tip?.away??""} onChange={v=>onChange({...tip,away:v})}/>
           </>
         )}
-        {pts!==null&&(
-          <div style={{minWidth:30,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,
-            background:pts===exactPts?"rgba(240,192,90,0.15)":pts>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",
-            color:pts===exactPts?T.gold:pts>0?T.mint:"#555"}}>
-            {pts}p
-          </div>
-        )}
+        {pts!==null&&<div style={{minWidth:28,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,background:exact?"rgba(240,192,90,0.15)":pts>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:exact?T.gold:pts>0?T.mint:"#555"}}>{pts}p</div>}
       </div>
       <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
         <FlagImg team={match.away}/><strong>{match.away}</strong>
@@ -516,44 +316,32 @@ function MatchRow({match,tip,onChange,readOnly,result,phase}) {
   );
 }
 
-function KnockoutMatchRow({slot,tips,setTip,results,readOnly}) {
-  const home=resolveForDisplay?resolveForDisplay(slot.slot1,tips||{},results||{}):resolveSlot(slot.slot1,tips||{});
-  const away=resolveForDisplay?resolveForDisplay(slot.slot2,tips||{},results||{}):resolveSlot(slot.slot2,tips||{});
-  const tip=tips?.[slot.id];
-  const result=results?.[slot.id];
-  const pts=result?.home!==undefined?scoreKnockout(tip,result,slot.phase):null;
-  const hasTeams=!!(home&&away);
-
+// Knockout match row — slot codes as labels, no chain resolution
+function KOMatchRow({slot,tip,onChange,readOnly,result}) {
+  const pts = result?.home!==undefined&&result?.away!==undefined
+    ? scoreMatch(tip,result,slot.phase) : null;
+  const exact = pts===(PTS[slot.phase]||PTS.R32).exact;
+  const isEnabled = true; // all knockout matches are tippable
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:hasTeams?1:0.4}}>
-      <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
-        {home?<><strong>{home}</strong><FlagImg team={home}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.slot1}</span>}
-      </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+      <div style={{textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{slot.home}</div>
       <div style={{display:"flex",alignItems:"center",gap:5}}>
-        {readOnly?(
+        <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginRight:2}}>{slot.label}</span>
+        {readOnly ? (
           <>
-            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:hasTeams?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.25)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
-            {result?.home!==undefined&&result?.home!==""&&(
-              <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
-                {result.home}–{result.away}
-              </div>
-            )}
+            <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.55)"}}>{tip?.home??"–"}–{tip?.away??"–"}</div>
+            {result?.home!==undefined&&result?.home!==""&&<div style={{minWidth:44,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>{result.home}–{result.away}</div>}
           </>
-        ):(
+        ) : (
           <>
-            <ScoreInput val={tip?.home??""} disabled={!hasTeams} onChange={v=>setTip&&setTip(slot.id,{...tip,home:v})}/>
+            <ScoreInput val={tip?.home??""} onChange={v=>onChange({...tip,home:v})}/>
             <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
-            <ScoreInput val={tip?.away??""} disabled={!hasTeams} onChange={v=>setTip&&setTip(slot.id,{...tip,away:v})}/>
+            <ScoreInput val={tip?.away??""} onChange={v=>onChange({...tip,away:v})}/>
           </>
         )}
-        {pts!==null&&(
-          <div style={{minWidth:30,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,
-            background:pts>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:pts>0?T.mint:"#555"}}>{pts}p</div>
-        )}
+        {pts!==null&&<div style={{minWidth:28,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,background:exact?"rgba(240,192,90,0.15)":pts>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:exact?T.gold:pts>0?T.mint:"#555"}}>{pts}p</div>}
       </div>
-      <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
-        {away?<><FlagImg team={away}/><strong>{away}</strong></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.slot2}</span>}
-      </div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{slot.away}</div>
     </div>
   );
 }
@@ -562,241 +350,169 @@ function DeadlineBanner() {
   const [now,setNow]=useState(new Date());
   useEffect(()=>{const t=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(t);},[]);
   const diff=DEADLINE-now;
-  if (diff<=0) return (
-    <div style={{background:"rgba(180,40,40,0.18)",border:"1px solid rgba(200,60,60,0.3)",borderRadius:12,padding:"12px 18px",marginBottom:16,textAlign:"center"}}>
-      <span style={{color:"#f08080",fontWeight:700}}>🔒 Tipping stengt — VM er i gang!</span>
-    </div>
-  );
+  if (diff<=0) return <div style={{background:"rgba(180,40,40,0.18)",border:"1px solid rgba(200,60,60,0.3)",borderRadius:12,padding:"12px 18px",marginBottom:16,textAlign:"center"}}><span style={{color:"#f08080",fontWeight:700}}>🔒 Tipping stengt — VM er i gang!</span></div>;
   const parts=[[Math.floor(diff/86400000),"dager"],[Math.floor((diff%86400000)/3600000),"timer"],[Math.floor((diff%3600000)/60000),"min"],[Math.floor((diff%60000)/1000),"sek"]];
-  return (
-    <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-      <span style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase"}}>⏱ Stenger om</span>
-      <div style={{display:"flex",gap:14}}>
-        {parts.map(([v,l])=>(
-          <div key={l} style={{textAlign:"center"}}>
-            <div style={{fontSize:20,fontWeight:800,color:T.gold,lineHeight:1}}>{String(v).padStart(2,"0")}</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",letterSpacing:1}}>{l.toUpperCase()}</div>
-          </div>
-        ))}
-      </div>
+  return <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+    <span style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase"}}>⏱ Stenger om</span>
+    <div style={{display:"flex",gap:14}}>
+      {parts.map(([v,l])=>(
+        <div key={l} style={{textAlign:"center"}}>
+          <div style={{fontSize:20,fontWeight:800,color:T.gold,lineHeight:1}}>{String(v).padStart(2,"0")}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",letterSpacing:1}}>{l.toUpperCase()}</div>
+        </div>
+      ))}
     </div>
-  );
+  </div>;
 }
 
-// ── REGISTER / LOGIN ──────────────────────────────────────────────────────────
-function RegisterView({onRegister,externalResults={},session}) {
+// ── REGISTER / LOGIN / EDIT ───────────────────────────────────────────────────
+function RegisterView({onLogin,externalResults={},session}) {
   const [mode,setMode]=useState(session?"editing":"choose");
-  const [name,setName]=useState(""),[pin,setPin]=useState(""),[pinConfirm,setPinConfirm]=useState("");
-  const [tips,setTips]=useState({}),[bonus,setBonus]=useState({});
-  const [step,setStep]=useState("group"),[currentGroup,setCurrentGroup]=useState("A");
+  const [name,setName]=useState("");
+  const [pin,setPin]=useState("");
+  const [pinConfirm,setPinConfirm]=useState("");
+  const [tips,setTips]=useState({});
+  const [bonus,setBonus]=useState({});
+  const [step,setStep]=useState("group");
+  const [currentGroup,setCurrentGroup]=useState("A");
   const [saving,setSaving]=useState(false);
   const [autoSaveState,setAutoSaveState]=useState("idle");
-  const [error,setError]=useState(""),[currentUser,setCurrentUser]=useState(null);
-  // "ready" gates autosave — prevents saving before session bootstrap has loaded existing tips
+  const [error,setError]=useState("");
+  const [currentUser,setCurrentUser]=useState(null);
   const [ready,setReady]=useState(!session);
-  const locked=new Date()>=DEADLINE;
+  const isLocked=new Date()>=DEADLINE;
 
-  // Auto-bootstrap from session on mount (load existing tips before allowing autosave)
+  // Bootstrap from session
   useEffect(()=>{
     let cancelled=false;
     if (session&&!currentUser) {
       sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(session.name)}&select=*`).then(res=>{
         if (cancelled) return;
-        if (res[0]) {
-          setCurrentUser(res[0]);
-          setTips(res[0].tips||{});
-          setBonus(res[0].bonus||{});
-        }
+        if (res[0]) { setCurrentUser(res[0]); setTips(res[0].tips||{}); setBonus(res[0].bonus||{}); }
         setReady(true);
       }).catch(e=>{console.error(e);setReady(true);});
     }
     return()=>{cancelled=true;};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[session]);
 
   const setTip=(id,val)=>setTips(t=>({...t,[id]:val}));
 
-  // Autosave — only fires once bootstrap is complete (ready=true) to avoid overwriting with empty data
+  // Autosave
   useEffect(()=>{
     if (!currentUser||!ready) return;
     setAutoSaveState("saving");
-    const timer=setTimeout(async()=>{
+    const t=setTimeout(async()=>{
       try {
         await sb.upsertByName("participants",[{name:currentUser.name,pin_hash:currentUser.pin_hash,tips,bonus}]);
         setAutoSaveState("idle");
-      } catch(e) {
-        console.error("Autosave failed:",e);
-        setAutoSaveState("error");
-      }
+      } catch(e){ console.error(e); setAutoSaveState("error"); }
     },1500);
-    return()=>clearTimeout(timer);
+    return()=>clearTimeout(t);
   },[tips,bonus,currentUser,ready]);
 
-  // FIX #7: Deadline enforced client-side before submit
-  const isLocked=new Date()>=DEADLINE;
+  // Autofill
+  const AUTOFILL_MAX=3;
+  const autofillKey=currentUser?`vm2026_autofill_${currentUser.name}`:null;
+  const [autoFillCount,setAutoFillCount]=useState(0);
+  useEffect(()=>{
+    if (!autofillKey) return;
+    try{setAutoFillCount(parseInt(localStorage.getItem(autofillKey)||"0"));}catch{}
+  },[autofillKey]);
+  const autofillRemaining=Math.max(0,AUTOFILL_MAX-autoFillCount);
+  const [autoFilling,setAutoFilling]=useState(false);
+
+  const doAutoFill=async()=>{
+    if (autoFillCount>=AUTOFILL_MAX||isLocked) return;
+    setAutoFilling(true);
+    try {
+      const groupList=Object.entries(GROUPS).map(([g,t])=>`Gruppe ${g}: ${t.join(", ")}`).join("\n");
+      const koList=KNOCKOUT_SLOTS.map(s=>`${s.id} (${s.label}): ${s.home} vs ${s.away}`).join("\n");
+      const prompt=`Du er en fotballekspert. Generer realistiske VM 2026-tips.
+
+Grupper:\n${groupList}
+
+Sluttspill:\n${koList}
+
+Returner KUN gyldig JSON (ingen annen tekst):
+{
+  "matches": { "g1": {"home":"2","away":"1"}, ... alle 72 gruppekamper g1-g72 },
+  "knockout": { "r32_1": {"home":"2","away":"0"}, ... alle sluttspillkamper r32_1 til f },
+  "bonus": { "b1":"Brasil","b2":"Mbappé","b3":"18","b4":"156","b5":"4" }
+}
+
+Regler:
+- MAKS 5 mål per lag
+- Typiske resultater: 1-0, 2-1, 1-1, 2-0. Sjeldent: 3-0, 3-1
+- Favoritter vinner oftere men ikke alltid
+- Inkluder alle 72 gruppekamper og alle ${KNOCKOUT_SLOTS.length} sluttspillkamper
+- Dette er forsøk nr ${autoFillCount+1} — varier resultatene`;
+
+      const response=await fetch("/api/autofill",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,attempt:autoFillCount})});
+      const data=await response.json();
+      if (!response.ok) throw new Error(data.error||"API-feil");
+      const text=data.content?.[0]?.text||"";
+      const jsonMatch=text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("Ingen gyldig JSON");
+      const parsed=JSON.parse(jsonMatch[0]);
+      const cap=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
+      const newTips={...tips};
+      if (parsed.matches) Object.entries(parsed.matches).forEach(([id,s])=>{
+        if (s?.home!==undefined) newTips[id]={home:cap(s.home),away:cap(s.away)};
+      });
+      if (parsed.knockout) Object.entries(parsed.knockout).forEach(([id,s])=>{
+        if (s?.home!==undefined) newTips[id]={home:cap(s.home),away:cap(s.away)};
+      });
+      setTips(newTips);
+      if (parsed.bonus) { const nb={...bonus}; Object.entries(parsed.bonus).forEach(([id,v])=>{nb[id]=String(v);}); setBonus(nb); }
+      const newCount=autoFillCount+1;
+      setAutoFillCount(newCount);
+      if (autofillKey) try{localStorage.setItem(autofillKey,String(newCount));}catch{}
+    } catch(e){ console.error(e); alert("Autofyll feilet: "+e.message); }
+    finally{ setAutoFilling(false); }
+  };
 
   const doRegister=async()=>{
     if (isLocked){setError("Tipping er stengt.");return;}
-    const cleanName=normalizeName(name); // FIX #8
+    const cleanName=normalizeName(name);
     if (!cleanName||pin.length<4||pin!==pinConfirm) return;
-    setSaving(true);setError("");
+    setSaving(true); setError("");
     try {
       const ph=await hashPin(pin);
       const ex=await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(cleanName)}&select=name`);
-      if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");setSaving(false);return;}
+      if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");return;}
       const u={name:cleanName,pin_hash:ph,tips:{},bonus:{}};
       await sb.upsertByName("participants",[u]);
-      setCurrentUser(u);setTips({});setBonus({});setReady(true);onRegister(u);setMode("editing");
+      setCurrentUser(u); setTips({}); setBonus({}); setReady(true);
+      onLogin(u); setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
 
   const doLogin=async()=>{
-    const cleanName=normalizeName(name); // FIX #8
+    const cleanName=normalizeName(name);
     if (!cleanName||!pin) return;
-    setSaving(true);setError("");
+    setSaving(true); setError("");
     try {
       const ph=await hashPin(pin);
       const res=await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(cleanName)}&select=*`);
-      if (res.length===0){setError("Bruker ikke funnet — sjekk stavemåten eller registrer deg.");setSaving(false);return;}
-      if (res[0].pin_hash!==ph){setError("Feil PIN-kode.");setSaving(false);return;}
+      if (res.length===0){setError("Bruker ikke funnet.");return;}
+      if (res[0].pin_hash!==ph){setError("Feil PIN-kode.");return;}
       const u=res[0];
-      setCurrentUser(u);setTips(u.tips||{});setBonus(u.bonus||{});setReady(true);onRegister(u);setMode("editing");
+      setCurrentUser(u); setTips(u.tips||{}); setBonus(u.bonus||{}); setReady(true);
+      onLogin(u); setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
 
   const doSubmit=async()=>{
-    if (isLocked){setError("Tipping er stengt — du kan ikke endre etter kampstart.");return;}
+    if (isLocked){setError("Tipping er stengt.");return;}
     setSaving(true);
     try {
       await sb.upsertByName("participants",[{name:currentUser.name,pin_hash:currentUser.pin_hash,tips,bonus}]);
       setMode("done");
-    } catch(e){setError("Feil ved lagring: "+e.message);}
+    } catch(e){setError("Feil: "+e.message);}
     finally{setSaving(false);}
   };
-
-  // ── AUTOFYLL ─────────────────────────────────────────────────────────────────
-  const [autoFilling,setAutoFilling]=useState(false);
-  const AUTOFILL_MAX=3;
-  const autofillKey=currentUser?`vm2026_autofill_${currentUser.name}`:null;
-  const [autoFillCount,setAutoFillCount]=useState(0);
-  // Re-read counter from localStorage whenever the logged-in user resolves
-  useEffect(()=>{
-    if (!autofillKey){setAutoFillCount(0);return;}
-    try{setAutoFillCount(parseInt(localStorage.getItem(autofillKey)||"0"));}catch{setAutoFillCount(0);}
-  },[autofillKey]);
-  const autofillRemaining=Math.max(0,AUTOFILL_MAX-autoFillCount);
-
-  const doAutoFill=async()=>{
-    if (autoFillCount>=AUTOFILL_MAX) return;
-    setAutoFilling(true);
-    try {
-      // Build prompt with all matches and FIFA ranking context
-      const groupList=Object.entries(GROUPS).map(([g,teams])=>`Gruppe ${g}: ${teams.join(", ")}`).join("\n");
-      const matchList=GROUP_MATCHES.map(m=>`${m.id}: ${m.home} vs ${m.away}`).join("\n");
-      const koList=KNOCKOUT_SLOTS.filter(s=>!s.adminOnly).map(s=>`${s.id}: ${s.label}`).join("\n");
-      const bonusList=BONUS_QUESTIONS.map(q=>`${q.id}: ${q.text}`).join("\n");
-
-      const prompt=`Du er en fotballekspert som skal lage et realistisk VM 2026-tippeskjema.
-
-Grupper:
-${groupList}
-
-Generer realistiske resultater basert på FIFA-ranking og lagstyrke. Bruk litt tilfeldighet — overraskelser skjer i fotball! Dette er forsøk nummer ${autoFillCount+1} så gi litt varierte resultater.
-
-Returner KUN gyldig JSON i dette formatet (ingen annen tekst):
-{
-  "matches": {
-    "g1": {"home": "2", "away": "1"},
-    ... (alle 72 gruppekamper, id g1-g72)
-  },
-  "knockout": {
-    "r32_1": {"home": "2", "away": "0"},
-    ... (kun de tippbare sluttspillkampene listet over)
-  },
-  "bonus": {
-    "b1": "Brasil",
-    "b2": "Kylian Mbappé",
-    "b3": "18",
-    "b4": "103",
-    "b5": "4"
-  }
-}
-
-Regler:
-- MAKS 5 mål per lag i en kamp — aldri 6 eller høyere
-- Typiske resultater: 1-0, 2-1, 1-1, 2-0, 3-1. Sjeldent: 4-0, 4-1. Ekstremt sjeldent: 5-x
-- Favoritter vinner oftere men ikke alltid — gjerne 1-2 overraskelser per gruppe
-- I sluttspill: 1-0, 2-1, 1-1, 2-0 er typisk. Maks 3-0
-- INKLUDER "3p" (bronsefinale) i knockout-objektet
-- Bonus b3=røde kort (typisk 15-25), b4=mål totalt (typisk 150-180 for 104 kamper), b5=mål Norge scorer totalt i gruppespill
-- VIKTIG: inkluder alle 72 gruppekamper (g1 til g72) og de tippbare sluttspillkampene (de 8 med "beste 3.-plass" fylles av admin og skal IKKE inkluderes)`;
-
-      const response=await fetch("/api/autofill",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt,attempt:autoFillCount})
-      });
-      const data=await response.json();
-      if (!response.ok) throw new Error(data.error||"API-feil");
-      const text=data.content?.[0]?.text||"";
-      // Parse JSON from response
-      const jsonMatch=text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Ingen gyldig JSON i svaret");
-      const parsed=JSON.parse(jsonMatch[0]);
-
-      // Apply match tips — cap at 5 to avoid unrealistic scores
-      const capScore=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
-      const newTips={...tips};
-      if (parsed.matches) {
-        Object.entries(parsed.matches).forEach(([id,score])=>{
-          if (score?.home!==undefined&&score?.away!==undefined) {
-            newTips[id]={home:capScore(score.home),away:capScore(score.away)};
-          }
-        });
-      }
-      // Apply knockout tips — also fill bronsefinale via loser logic
-      if (parsed.knockout) {
-        Object.entries(parsed.knockout).forEach(([id,score])=>{
-          if (score?.home!==undefined&&score?.away!==undefined) {
-            newTips[id]={home:capScore(score.home),away:capScore(score.away)};
-          }
-        });
-      }
-      // Bronsefinale: if sf1 and sf2 are filled but 3p is not, auto-generate
-      if (newTips["sf1"]&&newTips["sf2"]&&!newTips["3p"]) {
-        newTips["3p"]={home:String(Math.floor(Math.random()*3)),away:String(Math.floor(Math.random()*3))};
-      }
-      setTips(newTips);
-
-      // Apply bonus
-      if (parsed.bonus) {
-        const newBonus={...bonus};
-        Object.entries(parsed.bonus).forEach(([id,val])=>{
-          newBonus[id]=String(val);
-        });
-        setBonus(newBonus);
-      }
-
-      const newCount=autoFillCount+1;
-      setAutoFillCount(newCount);
-      if (autofillKey){try{localStorage.setItem(autofillKey,String(newCount));}catch{}}
-    } catch(e) {
-      console.error("Autofyll feilet:",e);
-      alert("Autofyll feilet: "+e.message);
-    } finally {
-      setAutoFilling(false);
-    }
-  };
-
-  if (locked&&mode!=="done"&&mode!=="editing") return (
-    <div style={{...cardCss,textAlign:"center",padding:"48px 24px"}}>
-      <div style={{fontSize:48,marginBottom:12}}>🔒</div>
-      <h2 style={{color:"#fff",margin:"0 0 8px"}}>Tipping er stengt</h2>
-      <p style={{color:T.muted}}>VM startet 11. juni 2026.</p>
-    </div>
-  );
 
   if (mode==="choose") return (
     <div style={cardCss}>
@@ -807,16 +523,12 @@ Regler:
         <p style={{color:T.muted,margin:0,fontSize:13}}>Vinmonopolet</p>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {[
-          {m:"login",  icon:"🔑",title:"Logg inn",    sub:"Jeg har deltatt før — fortsett der jeg slapp"},
-          {m:"register",icon:"✨",title:"Registrer meg",sub:"Opprett bruker med navn og PIN-kode"},
+        {[{m:"login",icon:"🔑",title:"Logg inn",sub:"Jeg har deltatt før"},
+          {m:"register",icon:"✨",title:"Registrer meg",sub:"Opprett ny bruker med navn og PIN"}
         ].map(({m,icon,title,sub})=>(
-          <button key={m} onClick={()=>setMode(m)} style={{
-            padding:"16px 20px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+          <button key={m} onClick={()=>setMode(m)} style={{padding:"16px 20px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",
             background:m==="login"?"rgba(42,122,106,0.18)":"rgba(255,255,255,0.04)",
-            border:`1px solid ${m==="login"?"rgba(42,122,106,0.35)":"rgba(255,255,255,0.09)"}`,
-            color:"#fff",
-          }}>
+            border:`1px solid ${m==="login"?"rgba(42,122,106,0.35)":"rgba(255,255,255,0.09)"}`,color:"#fff"}}>
             <div style={{fontSize:15,fontWeight:700,marginBottom:2}}>{icon} {title}</div>
             <div style={{fontSize:12,color:T.muted}}>{sub}</div>
           </button>
@@ -831,8 +543,7 @@ Regler:
       <label style={labelCss}>Navn</label>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Fornavn Etternavn" style={inputCss}/>
       <label style={labelCss}>PIN-kode</label>
-      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="Din PIN"
-        style={inputCss} onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
+      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} style={inputCss} onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
       {error&&<p style={{color:"#f08080",fontSize:13,marginBottom:12}}>{error}</p>}
       <div style={{display:"flex",gap:10}}>
         <Btn ghost onClick={()=>{setMode("choose");setError("");}}>← Tilbake</Btn>
@@ -852,16 +563,13 @@ Regler:
       <label style={labelCss}>Ditt navn</label>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Fornavn Etternavn" style={inputCss}/>
       <label style={labelCss}>Velg PIN (min. 4 tegn)</label>
-      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="F.eks. 1234" style={inputCss}/>
+      <input type="password" value={pin} onChange={e=>setPin(e.target.value)} style={inputCss}/>
       <label style={labelCss}>Bekreft PIN</label>
-      <input type="password" value={pinConfirm} onChange={e=>setPinConfirm(e.target.value)}
-        placeholder="Skriv PIN igjen" style={inputCss} onKeyDown={e=>e.key==="Enter"&&doRegister()}/>
+      <input type="password" value={pinConfirm} onChange={e=>setPinConfirm(e.target.value)} style={inputCss} onKeyDown={e=>e.key==="Enter"&&doRegister()}/>
       {error&&<p style={{color:"#f08080",fontSize:13,marginBottom:12}}>{error}</p>}
       <div style={{display:"flex",gap:10}}>
         <Btn ghost onClick={()=>{setMode("choose");setError("");}}>← Tilbake</Btn>
-        <Btn onClick={doRegister} disabled={saving||!name.trim()||pin.length<4||pin!==pinConfirm}>
-          {saving?"Oppretter...":"Opprett bruker →"}
-        </Btn>
+        <Btn onClick={doRegister} disabled={saving||!name.trim()||pin.length<4||pin!==pinConfirm}>{saving?"Oppretter...":"Opprett bruker →"}</Btn>
       </div>
     </div>
   );
@@ -869,16 +577,14 @@ Regler:
   if (mode==="editing") {
     const allGroups=Object.keys(GROUPS);
     const filledGroup=GROUP_MATCHES.filter(m=>tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
-    const tippableKO=KNOCKOUT_SLOTS.filter(s=>!s.adminOnly);
-    const filledKO=tippableKO.filter(s=>tips[s.id]?.home!==undefined&&tips[s.id]?.home!=="").length;
-    const total=GROUP_MATCHES.length+tippableKO.length;
+    const filledKO=KNOCKOUT_SLOTS.filter(s=>tips[s.id]?.home!==undefined&&tips[s.id]?.home!=="").length;
+    const total=GROUP_MATCHES.length+KNOCKOUT_SLOTS.length;
     const filled=filledGroup+filledKO;
     const pct=Math.round((filled/total)*100);
-    const groupMatches=GROUP_MATCHES.filter(m=>m.group===currentGroup);
 
     return (
       <div style={{maxWidth:740,margin:"0 auto"}}>
-        {/* FIX #10: Autosave status bar */}
+        {/* User bar */}
         <div style={{background:"rgba(42,122,106,0.12)",border:`1px solid ${autoSaveState==="error"?"rgba(240,80,80,0.4)":"rgba(42,122,106,0.22)"}`,borderRadius:12,padding:"12px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <div>
             <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{currentUser?.name}</div>
@@ -889,35 +595,23 @@ Regler:
               <span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{filled}/{total}</span>
             </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
             <span style={{fontSize:12,color:autoSaveState==="error"?"#f08080":autoSaveState==="saving"?T.mint:"rgba(255,255,255,0.25)"}}>
-              {autoSaveState==="error"?"⚠️ Lagring feilet — sjekk nett":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
+              {autoSaveState==="error"?"⚠️ Lagring feilet":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
             </span>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <button onClick={doAutoFill} disabled={autoFilling||isLocked||autofillRemaining===0} style={{
-                padding:"6px 12px",borderRadius:8,border:`1px solid ${autofillRemaining===0?"rgba(255,255,255,0.1)":"rgba(240,192,90,0.35)"}`,
-                cursor:autoFilling||isLocked||autofillRemaining===0?"not-allowed":"pointer",fontFamily:"inherit",
-                fontSize:11,fontWeight:700,
-                background:autofillRemaining===0?"rgba(255,255,255,0.04)":autoFilling?"rgba(240,192,90,0.08)":"rgba(240,192,90,0.12)",
-                color:autofillRemaining===0?"rgba(255,255,255,0.25)":T.gold,
-                opacity:isLocked?0.4:1,transition:"all 0.18s",
-                display:"flex",alignItems:"center",gap:5,
-              }}>
-                {autoFilling
-                  ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚽</span> Fyller ut...</>
-                  : autofillRemaining===0
-                    ? <>🔒 Ingen forsøk igjen</>
-                    : <>🎲 {autoFillCount>0?`Prøv igjen`:"Fyll ut for meg"}</>
-                }
-              </button>
-              {!isLocked&&<span style={{fontSize:10,color:autofillRemaining===0?"rgba(255,80,80,0.6)":"rgba(255,255,255,0.25)"}}>
-                {autofillRemaining} av {AUTOFILL_MAX} forsøk igjen
-              </span>}
-            </div>
+            {!isLocked&&<button onClick={doAutoFill} disabled={autoFilling||autofillRemaining===0} style={{
+              padding:"5px 10px",borderRadius:7,border:`1px solid ${autofillRemaining===0?"rgba(255,255,255,0.1)":"rgba(240,192,90,0.35)"}`,
+              cursor:autoFilling||autofillRemaining===0?"not-allowed":"pointer",fontFamily:"inherit",
+              fontSize:10,fontWeight:700,
+              background:autofillRemaining===0?"rgba(255,255,255,0.03)":"rgba(240,192,90,0.12)",
+              color:autofillRemaining===0?"rgba(255,255,255,0.25)":T.gold,
+            }}>
+              {autoFilling?"⚽ Fyller...":autofillRemaining===0?"🔒 Ingen forsøk":autoFillCount>0?`🎲 Prøv igjen (${autofillRemaining} igjen)`:"🎲 Fyll ut for meg"}
+            </button>}
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Step tabs */}
         <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
           {[["group","⚽ Gruppespill"],["knockout","🏆 Sluttspill"],["bonus","🎯 Bonusspørsmål"]].map(([id,label])=>(
             <button key={id} onClick={()=>setStep(id)} style={{
@@ -935,47 +629,35 @@ Regler:
           <div style={cardCss}>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
               {allGroups.map(g=>{
-                const gFilled=GROUP_MATCHES.filter(m=>m.group===g&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!==""&&tips[m.id]?.away!==undefined&&tips[m.id]?.away!=="").length;
-                const done=gFilled===6;
-                return (
-                  <button key={g} onClick={()=>setCurrentGroup(g)} style={{
-                    padding:"6px 12px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,
-                    background:currentGroup===g?`linear-gradient(135deg,${T.teal},#1a5a4a)`:done?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.06)",
-                    color:currentGroup===g?"#fff":done?T.mint:"rgba(255,255,255,0.5)",
-                  }}>{done?"✓ ":""}{g}</button>
-                );
+                const done=GROUP_MATCHES.filter(m=>m.group===g&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!==""&&tips[m.id]?.away!==undefined&&tips[m.id]?.away!=="").length===6;
+                return <button key={g} onClick={()=>setCurrentGroup(g)} style={{padding:"6px 12px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,
+                  background:currentGroup===g?`linear-gradient(135deg,${T.teal},#1a5a4a)`:done?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.06)",
+                  color:currentGroup===g?"#fff":done?T.mint:"rgba(255,255,255,0.5)",
+                }}>{done?"✓ ":""}{g}</button>;
               })}
             </div>
             <GroupBanner group={currentGroup}/>
-            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,margin:"8px 0"}}>
-              Alle 6 kamper · 3p eksakt · 1p riktig utfall · 4p/3p/2p for riktig plassering
-            </p>
-            {groupMatches.map(m=>(
-              <MatchRow key={m.id} match={m} tip={tips[m.id]} onChange={v=>setTip(m.id,v)} phase="group"/>
+            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,margin:"8px 0"}}>Alle 6 kamper · 3p eksakt · 1p riktig utfall · 4/3/2p riktig plassering</p>
+            {GROUP_MATCHES.filter(m=>m.group===currentGroup).map(m=>(
+              <MatchRow key={m.id} match={m} tip={tips[m.id]} onChange={v=>setTip(m.id,v)}/>
             ))}
-            {/* Computed standings */}
             {(()=>{
-              const tippedCount=groupMatches.filter(m=>tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
-              if (tippedCount===0) return null;
+              const n=GROUP_MATCHES.filter(m=>m.group===currentGroup&&tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length;
+              if (n===0) return null;
               const standings=computeGroupStandings(currentGroup,tips);
-              const rankLabels=["🥇 1. plass → videre","🥈 2. plass → videre","🥉 3. plass → beste taper","4. plass → ute"];
-              const rankColors=["#f0c05a","#c0c0c0",T.mint,"rgba(255,255,255,0.3)"];
-              return (
-                <div style={{marginTop:14,padding:"10px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10}}>
-                  <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase",marginBottom:8}}>
-                    Beregnet plassering fra dine tips
+              const colors=["#f0c05a","#c0c0c0",T.mint,"rgba(255,255,255,0.3)"];
+              return <div style={{marginTop:12,padding:"10px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,color:T.mint,textTransform:"uppercase",marginBottom:8}}>Beregnet plassering</div>
+                {standings.map((team,i)=>(
+                  <div key={team} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:i<3?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                    <FlagImg team={team} size={16}/>
+                    <span style={{fontWeight:600,fontSize:13,color:colors[i],flex:1}}>{team}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{["→ videre","→ videre","→ beste taper","→ ute"][i]}</span>
                   </div>
-                  {standings.map((team,i)=>(
-                    <div key={team} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:i<3?"1px solid rgba(255,255,255,0.05)":"none"}}>
-                      <FlagImg team={team} size={18}/>
-                      <span style={{fontWeight:600,fontSize:13,color:rankColors[i],flex:1}}>{team}</span>
-                      <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{rankLabels[i]}</span>
-                    </div>
-                  ))}
-                </div>
-              );
+                ))}
+              </div>;
             })()}
-            <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"space-between",flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"space-between",flexWrap:"wrap"}}>
               <div style={{display:"flex",gap:8}}>
                 {currentGroup>"A"&&<Btn ghost sm onClick={()=>setCurrentGroup(String.fromCharCode(currentGroup.charCodeAt(0)-1))}>← {String.fromCharCode(currentGroup.charCodeAt(0)-1)}</Btn>}
                 {currentGroup<"L"&&<Btn sm onClick={()=>setCurrentGroup(String.fromCharCode(currentGroup.charCodeAt(0)+1))}>{String.fromCharCode(currentGroup.charCodeAt(0)+1)} →</Btn>}
@@ -988,14 +670,17 @@ Regler:
         {/* SLUTTSPILL */}
         {step==="knockout"&&(
           <div style={cardCss}>
-            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,margin:"0 0 8px"}}>
-              Lagene hentes fra dine gruppetips. Grå = gruppen er ikke tippet ennå.
+            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,margin:"0 0 12px"}}>
+              Tippe kampresultater etter 90 min. Slottkoder viser hvem som møtes (f.eks. 1A = vinner gr.A).
             </p>
             {(()=>{
               let lp=null;
               return KNOCKOUT_SLOTS.map(slot=>{
-                const show=slot.phase!==lp; if (show) lp=slot.phase;
-                return <div key={slot.id}>{show&&<PhaseHeader phase={slot.phase}/>}<KnockoutMatchRow slot={slot} tips={tips} setTip={setTip} results={externalResults}/></div>;
+                const show=slot.phase!==lp; if(show) lp=slot.phase;
+                return <div key={slot.id}>
+                  {show&&<PhaseHeader phase={slot.phase}/>}
+                  <KOMatchRow slot={slot} tip={tips[slot.id]} onChange={v=>setTip(slot.id,v)}/>
+                </div>;
               });
             })()}
             <div style={{display:"flex",gap:10,marginTop:14}}>
@@ -1008,9 +693,7 @@ Regler:
         {/* BONUS */}
         {step==="bonus"&&(
           <div style={cardCss}>
-            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,marginBottom:16,marginTop:0}}>
-              Kun eksakt svar gir poeng.
-            </p>
+            <p style={{color:"rgba(255,255,255,0.35)",fontSize:12,marginBottom:16,marginTop:0}}>Kun eksakt svar gir poeng.</p>
             {BONUS_QUESTIONS.map(q=>(
               <div key={q.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"14px",marginBottom:10}}>
                 <label style={{...labelCss,marginBottom:8}}>
@@ -1037,187 +720,82 @@ Regler:
       <div style={{fontSize:52,marginBottom:12}}>🎉</div>
       <h2 style={{color:"#fff",margin:"0 0 8px"}}>Kupong innlevert!</h2>
       <p style={{color:T.mint,fontSize:16,fontWeight:700,margin:"0 0 4px"}}>{currentUser?.name}</p>
-      <p style={{color:T.muted,marginBottom:20}}>Du kan logge inn igjen og endre frem til 11. juni.</p>
+      <p style={{color:T.muted,marginBottom:20}}>Du kan endre frem til 11. juni kl. 20:00.</p>
       <Btn ghost onClick={()=>setMode("editing")}>✏️ Endre tips</Btn>
-    </div>
-  );
-}
-
-// ── LEADERBOARD ───────────────────────────────────────────────────────────────
-function LeaderboardView({participants,results,bonusResults}) {
-  const ranked=useMemo(()=>
-    [...participants].map(p=>({...p,total:calcTotal(p,results,bonusResults)})).sort((a,b)=>b.total-a.total)
-  ,[participants,results,bonusResults]);
-  const medals=["🥇","🥈","🥉"];
-  const pg=["rgba(240,192,90,0.15)","rgba(192,192,192,0.1)","rgba(205,127,50,0.12)"];
-  const pb=["rgba(240,192,90,0.35)","rgba(192,192,192,0.25)","rgba(205,127,50,0.25)"];
-  const pc=["#f0c05a","#c0c0c0","#cd7f32"];
-  const played=GROUP_MATCHES.filter(m=>results[m.id]?.home!==undefined).length;
-
-  if (ranked.length===0) return (
-    <div style={{...cardCss,textAlign:"center",padding:"48px"}}>
-      <div style={{fontSize:48,marginBottom:12}}>⚽</div>
-      <p style={{color:T.muted}}>Ingen deltakere ennå — vær den første!</p>
-    </div>
-  );
-
-  return (
-    <div style={{maxWidth:740,margin:"0 auto"}}>
-      <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",textAlign:"center",marginBottom:12}}>
-        {played} av {GROUP_MATCHES.length} gruppekamper spilt
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {ranked.map((p,i)=>(
-          <div key={p.name} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,background:i<3?pg[i]:"rgba(255,255,255,0.03)",border:`1px solid ${i<3?pb[i]:"rgba(255,255,255,0.07)"}`}}>
-            <span style={{fontSize:i<3?28:17,width:34,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:`${i+1}.`}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:16,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:2}}>
-                {GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length} av {GROUP_MATCHES.length} gruppekamper tippet
-              </div>
-            </div>
-            <div style={{fontSize:24,fontWeight:800,color:i<3?pc[i]:"rgba(255,255,255,0.65)",flexShrink:0}}>{p.total}p</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
 // ── MINE TIPS ─────────────────────────────────────────────────────────────────
 function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
-  // Find the logged-in user's participant record
-  const found=participants.find(p=>p.name.toLowerCase()===session?.name?.toLowerCase());
+  // Always reload fresh from DB to avoid stale cache
+  const [userData,setUserData]=useState(null);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    if (!session?.name) return;
+    setLoading(true);
+    sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(session.name)}&select=*`)
+      .then(res=>{ if(res[0]) setUserData(res[0]); })
+      .catch(console.error)
+      .finally(()=>setLoading(false));
+  },[session?.name]);
+
+  if (loading) return <div style={{...cardCss,textAlign:"center",padding:"48px"}}><div style={{fontSize:36,marginBottom:12}}>⏳</div><p style={{color:T.muted}}>Laster inn...</p></div>;
+  if (!userData) return <div style={{...cardCss,textAlign:"center",padding:"48px"}}><p style={{color:T.muted}}>Fant ikke din kupong.</p></div>;
+
+  const tips=userData.tips||{};
+  const b=userData.bonus||{};
+  const total=calcTotal(userData,results,bonusResults);
 
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
-      {!found&&(
-        <div style={{...cardCss,textAlign:"center",padding:"32px"}}>
-          <div style={{fontSize:32,marginBottom:12}}>⏳</div>
-          <p style={{color:T.muted}}>Laster inn dine tips...</p>
+      <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:18,color:"#fff"}}>{userData.name}</div>
+          <div style={{fontSize:12,color:T.mint,marginTop:3}}>{GROUP_MATCHES.filter(m=>tips[m.id]?.home!==undefined&&tips[m.id]?.home!=="").length} av {GROUP_MATCHES.length} gruppekamper tippet</div>
         </div>
-      )}
-      {found&&(
-        <div style={{marginTop:12}}>
-          <div style={{background:"rgba(42,122,106,0.12)",border:"1px solid rgba(42,122,106,0.25)",borderRadius:12,padding:"14px 18px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontWeight:800,fontSize:18,color:"#fff"}}>{found.name}</div>
-              <div style={{fontSize:12,color:T.mint,marginTop:3}}>
-                {GROUP_MATCHES.filter(m=>found.tips?.[m.id]?.home!==undefined&&found.tips[m.id].home!=="").length} av {GROUP_MATCHES.length} gruppekamper tippet
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{fontSize:28,fontWeight:800,color:T.gold}}>{calcTotal(found,results,bonusResults)}p</div>
-              {new Date()<DEADLINE&&onEditTips&&(
-                <button onClick={onEditTips} style={{
-                  padding:"8px 14px",borderRadius:8,border:"1px solid rgba(240,192,90,0.4)",
-                  background:"rgba(240,192,90,0.1)",color:T.gold,cursor:"pointer",
-                  fontFamily:"inherit",fontSize:12,fontWeight:700,
-                }}>✏️ Endre tips</button>
-              )}
-            </div>
-          </div>
-          <div style={cardCss}>
-            {/* Legend */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:14,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:11,color:"rgba(255,255,255,0.5)"}}>
-              <span style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{padding:"2px 8px",borderRadius:4,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.7)",fontSize:10,fontWeight:700}}>1–0</span>
-                Ditt tips
-              </span>
-              <span style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{padding:"2px 8px",borderRadius:4,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",color:T.gold,fontSize:10,fontWeight:700}}>1–0</span>
-                Fasit
-              </span>
-            </div>
-            <div style={{maxHeight:"60vh",overflowY:"auto"}}>
-              {Object.keys(GROUPS).map(g=>(
-                <div key={g}>
-                  <GroupBanner group={g}/>
-                  {GROUP_MATCHES.filter(m=>m.group===g).map(m=>(
-                    <MatchRow key={m.id} match={m} tip={found.tips?.[m.id]} result={results[m.id]} readOnly phase="group"/>
-                  ))}
-                </div>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          <div style={{fontSize:28,fontWeight:800,color:T.gold}}>{total}p</div>
+          {new Date()<DEADLINE&&onEditTips&&<button onClick={onEditTips} style={{padding:"8px 14px",borderRadius:8,border:"1px solid rgba(240,192,90,0.4)",background:"rgba(240,192,90,0.1)",color:T.gold,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>✏️ Endre tips</button>}
+        </div>
+      </div>
+      <div style={cardCss}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:14,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:11,color:"rgba(255,255,255,0.5)"}}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{padding:"2px 8px",borderRadius:4,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",fontSize:10,fontWeight:700}}>1–0</span>Ditt tips</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{padding:"2px 8px",borderRadius:4,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",color:T.gold,fontSize:10,fontWeight:700}}>1–0</span>Fasit</span>
+        </div>
+        <div style={{maxHeight:"65vh",overflowY:"auto"}}>
+          {Object.keys(GROUPS).map(g=>(
+            <div key={g}>
+              <GroupBanner group={g}/>
+              {GROUP_MATCHES.filter(m=>m.group===g).map(m=>(
+                <MatchRow key={m.id} match={m} tip={tips[m.id]} result={results[m.id]} readOnly/>
               ))}
-              {(()=>{
-                let lp=null;
-                return KNOCKOUT_SLOTS.map(slot=>{
-                  const show=slot.phase!==lp; if (show) lp=slot.phase;
-                  const resolvedHome=resolveForDisplay(slot.slot1,found.tips||{},results);
-                const resolvedAway=resolveForDisplay(slot.slot2,found.tips||{},results);
-                const tip2=found.tips?.[slot.id];
-                const result2=results?.[slot.id];
-                const pts2=result2?.home!==undefined?scoreKnockout(tip2,result2,slot.phase):null;
-                if (slot.thirdSlot) {
-                  const homeIsThird=slot.thirdSlot==="home";
-                  const adminHome=homeIsThird
-                    ? (typeof results[slot.id+"_home"]==="string"?results[slot.id+"_home"]:null)
-                    : resolveForDisplay(slot.slot1,found.tips||{},results);
-                  const adminAway=!homeIsThird
-                    ? (typeof results[slot.id+"_away"]==="string"?results[slot.id+"_away"]:null)
-                    : resolveForDisplay(slot.slot2,found.tips||{},results);
-                  const hasResult=result2?.home!==undefined&&result2?.home!=="";
-                  return (
-                  <div key={slot.id}>
-                    {show&&<PhaseHeader phase={slot.phase}/>}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:adminHome&&adminAway?0.85:0.35}}>
-                      <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
-                        {adminHome?<><strong>{adminHome}</strong><FlagImg team={adminHome}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Beste 3.-plass</span>}
-                      </div>
-                      <div style={{minWidth:58,textAlign:"center",fontSize:14,fontWeight:700,color:hasResult?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.2)"}}>
-                        {hasResult?`${result2.home}–${result2.away}`:"–"}
-                      </div>
-                      <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
-                        {adminAway?<><FlagImg team={adminAway}/><strong>{adminAway}</strong></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>Beste 3.-plass</span>}
-                      </div>
-                    </div>
-                  </div>
-                  );
-                }
-                return (
-                  <div key={slot.id}>
-                    {show&&<PhaseHeader phase={slot.phase}/>}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:resolvedHome&&resolvedAway?1:0.4}}>
-                      <div style={{textAlign:"right",fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
-                        {resolvedHome?<><strong>{resolvedHome}</strong><FlagImg team={resolvedHome}/></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.label}</span>}
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <div style={{minWidth:48,textAlign:"center",fontSize:14,fontWeight:700,color:resolvedHome&&resolvedAway?"rgba(255,255,255,0.7)":"rgba(255,255,255,0.25)"}}>
-                          {tip2?.home??"–"}–{tip2?.away??"–"}
-                        </div>
-                        {result2?.home!==undefined&&result2?.home!==""&&(
-                          <div style={{minWidth:48,textAlign:"center",fontSize:13,fontWeight:700,color:T.gold,letterSpacing:1,padding:"2px 6px",borderRadius:5,background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)"}}>
-                            {result2.home}–{result2.away}
-                          </div>
-                        )}
-                        {pts2!==null&&<div style={{minWidth:30,textAlign:"center",padding:"3px 6px",borderRadius:6,fontSize:11,fontWeight:800,background:pts2>0?"rgba(126,200,160,0.12)":"rgba(255,255,255,0.04)",color:pts2>0?T.mint:"#555"}}>{pts2}p</div>}
-                      </div>
-                      <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",display:"flex",alignItems:"center",gap:5}}>
-                        {resolvedAway?<><FlagImg team={resolvedAway}/><strong>{resolvedAway}</strong></>:<span style={{color:"rgba(255,255,255,0.3)",fontSize:12}}>{slot.label}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-                });
-              })()}
-              <PhaseHeader phase="BONUS"/>
-              {BONUS_QUESTIONS.map(q=>{
-                const tip=found.bonus?.[q.id];
-                const approved=bonusResults[q.id]?.approved||[];
-                const legacy=bonusResults[q.id]?.answer;
-                const correct=tip&&(approved.some(a=>a.toString().trim().toLowerCase()===tip.toString().trim().toLowerCase())||(legacy&&tip.toString().trim().toLowerCase()===legacy.toString().trim().toLowerCase()));
-                return (
-                  <div key={q.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:13}}>
-                    <span style={{color:"rgba(255,255,255,0.5)"}}>{q.icon} {q.text}</span>
-                    <span style={{fontWeight:700,color:correct?T.gold:(approved.length>0||legacy)?"#f08080":"rgba(255,255,255,0.65)"}}>
-                      {tip||"–"}{(approved.length>0||legacy)?` ${correct?`✅ ${q.points}p`:"❌"}`:""}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
-          </div>
+          ))}
+          {(()=>{let lp=null; return KNOCKOUT_SLOTS.map(slot=>{
+            const show=slot.phase!==lp; if(show) lp=slot.phase;
+            return <div key={slot.id}>{show&&<PhaseHeader phase={slot.phase}/>}
+              <KOMatchRow slot={slot} tip={tips[slot.id]} result={results[slot.id]} readOnly/>
+            </div>;
+          });})()}
+          <PhaseHeader phase="BONUS"/>
+          {BONUS_QUESTIONS.map(q=>{
+            const tip=b[q.id];
+            const approved=bonusResults[q.id]?.approved||[];
+            const legacy=bonusResults[q.id]?.answer;
+            const correct=tip&&(approved.some(a=>a.toString().trim().toLowerCase()===tip.toString().trim().toLowerCase())||(legacy&&tip.toString().trim().toLowerCase()===legacy.toString().trim().toLowerCase()));
+            const hasAnswer=approved.length>0||legacy;
+            return <div key={q.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:13}}>
+              <span style={{color:"rgba(255,255,255,0.5)"}}>{q.icon} {q.text}</span>
+              <span style={{fontWeight:700,color:correct?T.gold:hasAnswer?"#f08080":"rgba(255,255,255,0.65)"}}>
+                {tip||"–"}{hasAnswer?` ${correct?`✅ ${q.points}p`:"❌"}`:""}
+              </span>
+            </div>;
+          })}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1225,65 +803,36 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
 // ── RULES ─────────────────────────────────────────────────────────────────────
 function RulesView() {
   const sections=[
-    {title:"⚽ Gruppespill (72 kamper)",rows:[
-      ["Eksakt resultat","3p"],
-      ["Riktig utfall (seier/uavgjort)","1p"],
-      ["Riktig lag på 1. plass i gruppe","4p"],
-      ["Riktig lag på 2. plass i gruppe","3p"],
-      ["Riktig lag på 3. plass (beste taper)","2p"],
-    ]},
-    {title:"🏆 Sluttspill — kampresultat",rows:[
-      ["16-delsfinale — eksakt / riktig vinner","3p / 1p"],
-      ["Åttendelsfinale — eksakt / riktig vinner","4p / 2p"],
-      ["Kvartfinale — eksakt / riktig vinner","5p / 2p"],
-      ["Semifinale — eksakt / riktig vinner","6p / 3p"],
-      ["Bronsefinale — eksakt / riktig vinner","4p / 2p"],
-      ["Finale — eksakt / riktig vinner","8p / 4p"],
-    ]},
-    {title:"🎯 Riktig lag videre i sluttspillet",rows:[
-      ["Riktig lag i 16-delsfinale","2p"],
-      ["Riktig lag i åttendelsfinale","3p"],
-      ["Riktig lag i kvartfinale","4p"],
-      ["Riktig lag i semifinale","5p"],
-      ["Riktig VM-vinner","8p"],
-    ]},
-    {title:"🎁 Bonusspørsmål (kun eksakt svar)",rows:[
-      ["Hvem vinner VM?","10p"],
-      ["Hvem blir toppscorer?","8p"],
-      ["Antall røde kort i turneringen?","6p"],
-      ["Antall mål i turneringen?","6p"],
-      ["Antall mål Norge scorer?","5p"],
-    ]},
+    {title:"⚽ Gruppespill (72 kamper)",rows:[["Eksakt resultat","3p"],["Riktig utfall (seier/uavgjort)","1p"],["Riktig lag på 1. plass","4p"],["Riktig lag på 2. plass","3p"],["Riktig lag på 3. plass (beste taper)","2p"]]},
+    {title:"🏆 Sluttspill — alle runder kan tippes",rows:[["16-delsfinale — eksakt / riktig utfall","3p / 1p"],["Åttendelsfinale — eksakt / riktig utfall","4p / 2p"],["Kvartfinale — eksakt / riktig utfall","5p / 2p"],["Semifinale — eksakt / riktig utfall","6p / 3p"],["Bronsefinale — eksakt / riktig utfall","4p / 2p"],["Finale — eksakt / riktig utfall","8p / 4p"]]},
+    {title:"🎁 Bonusspørsmål (kun eksakt svar)",rows:[["Hvem vinner VM?","10p"],["Hvem blir toppscorer?","8p"],["Antall røde kort?","6p"],["Antall mål totalt?","6p"],["Antall mål Norge scorer?","5p"]]},
   ];
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
       <div style={cardCss}>
         <h2 style={{color:"#fff",margin:"0 0 4px",fontSize:20}}>📋 Regler og poengberegning</h2>
-        <p style={{color:T.muted,fontSize:13,marginBottom:20}}>VM 2026 — Vinmonopolet Økonomi</p>
+        <p style={{color:T.muted,fontSize:13,marginBottom:20}}>VM 2026 — Vinmonopolet</p>
         {sections.map(s=>(
           <div key={s.title} style={{marginBottom:20}}>
             <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:8,paddingBottom:6,borderBottom:"1px solid rgba(255,255,255,0.08)"}}>{s.title}</div>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <tbody>
-                {s.rows.map(([label,pts])=>(
-                  <tr key={label}>
-                    <td style={{fontSize:13,color:"rgba(255,255,255,0.65)",padding:"5px 0"}}>{label}</td>
-                    <td style={{fontSize:13,fontWeight:700,color:T.gold,textAlign:"right",padding:"5px 0"}}>{pts}</td>
-                  </tr>
-                ))}
-              </tbody>
+              <tbody>{s.rows.map(([label,pts])=>(
+                <tr key={label}>
+                  <td style={{fontSize:13,color:"rgba(255,255,255,0.65)",padding:"5px 0"}}>{label}</td>
+                  <td style={{fontSize:13,fontWeight:700,color:T.gold,textAlign:"right",padding:"5px 0"}}>{pts}</td>
+                </tr>
+              ))}</tbody>
             </table>
           </div>
         ))}
-        <div style={{background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",borderRadius:10,padding:"14px 16px",marginTop:4}}>
+        <div style={{background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",borderRadius:10,padding:"14px 16px"}}>
           <div style={{fontSize:12,color:T.mint,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>Generelle regler</div>
           <ul style={{color:"rgba(255,255,255,0.6)",fontSize:13,margin:0,paddingLeft:18,lineHeight:1.9}}>
             <li>Tipping stenger 11. juni 2026 kl. 20:00 — åpningskampen starter</li>
-            <li>Sluttspill fylles ut basert på hvem du tippet videre fra gruppespillet</li>
+            <li>Sluttspillet tippes med slot-koder: 1A = vinner gruppe A, 2B = nr.2 gruppe B osv.</li>
             <li>I sluttspillet er det alltid en vinner — 1-1 betyr hjemmelaget vinner (straffer)</li>
             <li>Grupperanking-poeng gis kun når alle 6 kamper i gruppen er spilt</li>
-            <li>Logg inn med navn og PIN for å endre tips frem til deadline</li>
-            <li>Bonusspørsmål: admin godkjenner svarene — varianter av samme navn kan alle godkjennes</li>
+            <li>Bonusspørsmål: kun eksakt svar gir poeng — admin godkjenner varianter</li>
             <li>Ved poenglikhet avgjøres plasseringen av flest eksakte resultater</li>
           </ul>
         </div>
@@ -1297,7 +846,6 @@ function BonusAdminPanel({participants,bonusResults,saveBonusResult}) {
   const [selectedQ,setSelectedQ]=useState("b1");
   const [saving,setSaving]=useState(false);
   const q=BONUS_QUESTIONS.find(bq=>bq.id===selectedQ);
-
   const answers=useMemo(()=>{
     const map={};
     participants.forEach(p=>{
@@ -1305,14 +853,11 @@ function BonusAdminPanel({participants,bonusResults,saveBonusResult}) {
       if (!ans||ans.toString().trim()==="") return;
       const norm=ans.toString().trim();
       if (!map[norm]) map[norm]={raw:norm,count:0,names:[]};
-      map[norm].count++;
-      map[norm].names.push(p.name);
+      map[norm].count++; map[norm].names.push(p.name);
     });
     return Object.values(map).sort((a,b)=>b.count-a.count);
   },[participants,selectedQ]);
-
   const approved=useMemo(()=>bonusResults[selectedQ]?.approved||[],[bonusResults,selectedQ]);
-
   const toggleApproved=async(raw)=>{
     const cur=bonusResults[selectedQ]?.approved||[];
     const next=cur.includes(raw)?cur.filter(x=>x!==raw):[...cur,raw];
@@ -1320,64 +865,48 @@ function BonusAdminPanel({participants,bonusResults,saveBonusResult}) {
     await saveBonusResult(selectedQ,bonusResults[selectedQ]?.answer||"",next);
     setSaving(false);
   };
-
   return (
     <div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
         {BONUS_QUESTIONS.map(bq=>(
-          <button key={bq.id} onClick={()=>setSelectedQ(bq.id)} style={{
-            padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
+          <button key={bq.id} onClick={()=>setSelectedQ(bq.id)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
             background:selectedQ===bq.id?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",
-            color:selectedQ===bq.id?"#fff":"rgba(255,255,255,0.5)",
-          }}>{bq.icon} {bq.points}p</button>
+            color:selectedQ===bq.id?"#fff":"rgba(255,255,255,0.5)"}}>
+            {bq.icon} {bq.points}p
+          </button>
         ))}
       </div>
-      {q&&(
-        <div>
-          <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:4}}>{q.icon} {q.text}</div>
-          <div style={{fontSize:12,color:T.muted,marginBottom:14}}>
-            Klikk et svar for å godkjenne/avvise. Alle som har skrevet det svaret får {q.points}p.
-            {saving&&<span style={{color:T.mint,marginLeft:8}}>Lagrer...</span>}
-          </div>
-          {answers.length===0&&<p style={{color:"rgba(255,255,255,0.3)",fontSize:13}}>Ingen svar ennå.</p>}
-          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"42vh",overflowY:"auto"}}>
-            {answers.map(({raw,count,names})=>{
-              const isApproved=approved.includes(raw);
-              return (
-                <div key={raw} onClick={()=>toggleApproved(raw)} style={{
-                  display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,cursor:"pointer",
-                  background:isApproved?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.04)",
-                  border:`1px solid ${isApproved?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.08)"}`,
-                }}>
-                  <div style={{width:22,height:22,borderRadius:6,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,
-                    background:isApproved?"rgba(126,200,160,0.3)":"rgba(255,255,255,0.08)",
-                    border:`1px solid ${isApproved?T.mint:"rgba(255,255,255,0.15)"}`,
-                    color:isApproved?T.mint:"transparent"}}>✓</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:700,color:isApproved?T.mint:"#fff"}}>{raw}</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{names.join(", ")}</div>
-                  </div>
-                  <div style={{fontSize:12,fontWeight:700,flexShrink:0,padding:"3px 10px",borderRadius:20,
-                    color:isApproved?T.mint:"rgba(255,255,255,0.4)",
-                    background:isApproved?"rgba(126,200,160,0.1)":"rgba(255,255,255,0.05)"}}>
-                    {count} {isApproved?`· ${count*q.points}p`:""}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {approved.length>0&&(
-            <div style={{marginTop:12,padding:"10px 14px",background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",borderRadius:10}}>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:T.gold,textTransform:"uppercase",marginBottom:6}}>Godkjente svar</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {approved.map(a=>(
-                  <span key={a} style={{fontSize:12,color:T.gold,background:"rgba(240,192,90,0.1)",padding:"3px 10px",borderRadius:20,border:"1px solid rgba(240,192,90,0.2)"}}>{a}</span>
-                ))}
+      {q&&<div>
+        <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:4}}>{q.icon} {q.text}</div>
+        <div style={{fontSize:12,color:T.muted,marginBottom:14}}>Klikk svar for å godkjenne. {saving&&<span style={{color:T.mint}}>Lagrer...</span>}</div>
+        {answers.length===0&&<p style={{color:"rgba(255,255,255,0.3)",fontSize:13}}>Ingen svar ennå.</p>}
+        <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"42vh",overflowY:"auto"}}>
+          {answers.map(({raw,count,names})=>{
+            const isApproved=approved.includes(raw);
+            return <div key={raw} onClick={()=>toggleApproved(raw)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,cursor:"pointer",
+              background:isApproved?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.04)",
+              border:`1px solid ${isApproved?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.08)"}`}}>
+              <div style={{width:22,height:22,borderRadius:6,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,
+                background:isApproved?"rgba(126,200,160,0.3)":"rgba(255,255,255,0.08)",
+                border:`1px solid ${isApproved?T.mint:"rgba(255,255,255,0.15)"}`,color:isApproved?T.mint:"transparent"}}>✓</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700,color:isApproved?T.mint:"#fff"}}>{raw}</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{names.join(", ")}</div>
               </div>
-            </div>
-          )}
+              <div style={{fontSize:12,fontWeight:700,flexShrink:0,padding:"3px 10px",borderRadius:20,
+                color:isApproved?T.mint:"rgba(255,255,255,0.4)",background:isApproved?"rgba(126,200,160,0.1)":"rgba(255,255,255,0.05)"}}>
+                {count} {isApproved?`· ${count*q.points}p`:""}
+              </div>
+            </div>;
+          })}
         </div>
-      )}
+        {approved.length>0&&<div style={{marginTop:12,padding:"10px 14px",background:"rgba(240,192,90,0.08)",border:"1px solid rgba(240,192,90,0.2)",borderRadius:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:T.gold,textTransform:"uppercase",marginBottom:6}}>Godkjente svar</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {approved.map(a=><span key={a} style={{fontSize:12,color:T.gold,background:"rgba(240,192,90,0.1)",padding:"3px 10px",borderRadius:20,border:"1px solid rgba(240,192,90,0.2)"}}>{a}</span>)}
+          </div>
+        </div>}
+      </div>}
     </div>
   );
 }
@@ -1416,224 +945,88 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
     catch(e){console.error(e);}
   };
 
-
   const doAdminAutoFill=async()=>{
-    if (!window.confirm("Dette vil overskrive ALLE eksisterende resultater i databasen med simulerte resultater. Kun for testing! Fortsette?")) return;
+    if (!window.confirm("Overskrive ALLE resultater med simulerte? (Kun for testing)")) return;
     setAdminFilling(true);
     try {
-      const groupList=Object.entries(GROUPS).map(([g,teams])=>`Gruppe ${g}: ${teams.join(", ")}`).join("\n");
-      const prompt=`Du er en fotballekspert. Generer et komplett sett med VM 2026-resultater for simulering/testing.
-
-Grupper:
-${groupList}
-
-Returner KUN gyldig JSON (ingen annen tekst):
-{
-  "matches": {
-    "g1": {"home": "2", "away": "1"},
-    ... alle 72 gruppekamper g1-g72
-  },
-  "knockout": {
-    "r32_1": {"home": "2", "away": "0"},
-    ... alle sluttspillkamper: r32_1 til r32_16, r16_1 til r16_8, qf1-qf4, sf1, sf2, 3p, f
-  }
-}
-
-Regler:
-- MAKS 5 mål per lag
-- Typiske resultater: 1-0, 2-1, 1-1, 2-0. Sjeldent: 3-0, 3-1
-- Favoritter vinner oftere men ikke alltid
-- De 8 beste 3.-plass-kampene (r32_2,5,7,8,9,10,13,15) har én gruppevinner og én 3.-plass — bare gi en scoreline
-- Inkluder ALLE kamper inkludert 3p (bronsefinale) og f (finale)`;
-
-      const response=await fetch("/api/autofill",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({prompt,attempt:0})
-      });
+      const groupList=Object.entries(GROUPS).map(([g,t])=>`Gruppe ${g}: ${t.join(", ")}`).join("\n");
+      const koList=KNOCKOUT_SLOTS.map(s=>`${s.id}: ${s.home} vs ${s.away}`).join("\n");
+      const prompt=`Generer komplett VM 2026-fasit for simulering.\n\nGrupper:\n${groupList}\n\nSluttspill:\n${koList}\n\nReturner KUN JSON:\n{"matches":{"g1":{"home":"2","away":"1"},...alle g1-g72},"knockout":{"r32_1":{"home":"2","away":"0"},...alle til f}}\n\nMaks 5 mål per lag. Realistiske resultater.`;
+      const response=await fetch("/api/autofill",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,attempt:0})});
       const data=await response.json();
-      if (!response.ok) throw new Error(data.error||"API-feil");
       const text=data.content?.[0]?.text||"";
-      const jsonMatch=text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Ingen gyldig JSON");
-      const parsed=JSON.parse(jsonMatch[0]);
-
-      const capScore=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
+      const parsed=JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+      const cap=v=>String(Math.min(5,Math.max(0,parseInt(v)||0)));
       const allResults=[];
-
-      // Group matches
-      if (parsed.matches) {
-        Object.entries(parsed.matches).forEach(([id,score])=>{
-          if (score?.home!==undefined&&score?.away!==undefined) {
-            allResults.push({id,home:capScore(score.home),away:capScore(score.away)});
-          }
-        });
-      }
-      // Knockout
-      if (parsed.knockout) {
-        Object.entries(parsed.knockout).forEach(([id,score])=>{
-          if (score?.home!==undefined&&score?.away!==undefined) {
-            allResults.push({id,home:capScore(score.home),away:capScore(score.away)});
-          }
-        });
-      }
-
-      // Save all to Supabase in one batch
+      if (parsed.matches) Object.entries(parsed.matches).forEach(([id,s])=>{ if(s?.home!==undefined) allResults.push({id,home:cap(s.home),away:cap(s.away)}); });
+      if (parsed.knockout) Object.entries(parsed.knockout).forEach(([id,s])=>{ if(s?.home!==undefined) allResults.push({id,home:cap(s.home),away:cap(s.away)}); });
       await sb.upsert("results",allResults);
-
-      // Update local state
-      const newResMap={};
-      allResults.forEach(r=>{newResMap[r.id]={home:r.home,away:r.away};});
-      setResults(r=>({...r,...newResMap}));
-
+      const newMap={};
+      allResults.forEach(r=>{newMap[r.id]={home:r.home,away:r.away};});
+      setResults(r=>({...r,...newMap}));
       await reload();
-      alert(`✅ ${allResults.length} resultater lagret! Ledertavlen oppdateres nå.`);
-    } catch(e) {
-      console.error(e);
-      alert("Feil: "+e.message);
-    } finally {
-      setAdminFilling(false);
-    }
-  };
-
-  const doClearAllResults=async()=>{
-    if (!window.confirm("Slett ALLE resultater fra databasen? Dette kan ikke angres.")) return;
-    try {
-      // Delete all from results table
-      await fetch(`${SUPABASE_URL}/rest/v1/results?id=neq.PLACEHOLDER`,{
-        method:"DELETE",
-        headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":`Bearer ${SUPABASE_ANON_KEY}`}
-      });
-      setResults({});
-      GROUP_OVERRIDES={};
-      alert("Alle resultater slettet.");
-    } catch(e){alert("Feil: "+e.message);}
+      alert(`✅ ${allResults.length} resultater lagret!`);
+    } catch(e){ alert("Feil: "+e.message); }
+    finally{ setAdminFilling(false); }
   };
 
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
         {[["matches","⚽ Kamper"],["knockout","🏆 Sluttspill"],["bonus","🎯 Bonus"],["stats","📊 Statistikk"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{
-            padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
             background:tab===id?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",
-            color:tab===id?"#fff":"rgba(255,255,255,0.45)",
-          }}>{label}</button>
+            color:tab===id?"#fff":"rgba(255,255,255,0.45)"}}>
+            {label}
+          </button>
         ))}
         <button onClick={reload} style={{padding:"8px 14px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(255,255,255,0.09)",background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.45)"}}>🔄</button>
-        <button onClick={doAdminAutoFill} disabled={adminFilling} style={{padding:"8px 14px",borderRadius:9,cursor:adminFilling?"not-allowed":"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(240,192,90,0.3)",background:"rgba(240,192,90,0.1)",color:T.gold,opacity:adminFilling?0.5:1}}>
-          {adminFilling?"⚽ Simulerer...":"🎲 Simuler alle resultater"}
-        </button>
-        <button onClick={doClearAllResults} style={{padding:"8px 14px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(240,80,80,0.25)",background:"rgba(240,80,80,0.08)",color:"#f08080"}}>
-          🗑️ Nullstill
+        <button onClick={doAdminAutoFill} disabled={adminFilling} style={{padding:"8px 14px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,border:"1px solid rgba(240,192,90,0.3)",background:"rgba(240,192,90,0.1)",color:T.gold,opacity:adminFilling?0.5:1}}>
+          {adminFilling?"⚽ Simulerer...":"🎲 Simuler resultater"}
         </button>
       </div>
-      <div style={cardCss}>
 
+      <div style={cardCss}>
         {tab==="matches"&&(
           <>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
               {Object.keys(GROUPS).map(g=>{
                 const done=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length===6;
-                return <button key={g} onClick={()=>setCurrentGroup(g)} style={{
-                  padding:"5px 10px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
+                return <button key={g} onClick={()=>setCurrentGroup(g)} style={{padding:"5px 10px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,
                   background:currentGroup===g?`linear-gradient(135deg,${T.teal},#1a5a4a)`:done?"rgba(126,200,160,0.15)":"rgba(255,255,255,0.06)",
-                  color:currentGroup===g?"#fff":done?T.mint:"rgba(255,255,255,0.5)",
-                }}>{done?"✓ ":""}{g}</button>;
+                  color:currentGroup===g?"#fff":done?T.mint:"rgba(255,255,255,0.5)"}}>
+                  {done?"✓ ":""}{g}
+                </button>;
               })}
             </div>
             <GroupBanner group={currentGroup}/>
-            {/* Standings + optional override */}
             {(()=>{
               const done=GROUP_MATCHES.filter(m=>m.group===currentGroup&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length===6;
               if (!done) return null;
-              const computed=computeGroupStandings(currentGroup,results);
-              const hasOverride=GROUP_OVERRIDES[currentGroup]&&GROUP_OVERRIDES[currentGroup].length===4;
-              const active=hasOverride?GROUP_OVERRIDES[currentGroup]:computed;
-              const teams=GROUPS[currentGroup];
-              const saveOverride=async(newOrder)=>{
-                setGroupOverride(currentGroup,newOrder);
-                try{await sb.upsert("results",[{id:`override_${currentGroup}`,home:JSON.stringify(newOrder),away:""}]);}
-                catch(e){console.error(e);}
-                // Force re-render
-                setResults(r=>({...r}));
-              };
-              const clearOverride=async()=>{
-                setGroupOverride(currentGroup,[]);
-                try{await sb.upsert("results",[{id:`override_${currentGroup}`,home:"[]",away:""}]);}
-                catch(e){console.error(e);}
-                setResults(r=>({...r}));
-              };
-              return (
-                <div style={{margin:"8px 0",padding:"12px",background:"rgba(42,122,106,0.1)",border:`1px solid ${hasOverride?"rgba(240,192,90,0.35)":"rgba(42,122,106,0.2)"}`,borderRadius:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div style={{fontSize:11,color:hasOverride?T.gold:T.mint,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
-                      {hasOverride?"⚙️ Manuell plassering":"Beregnet plassering"}
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      {hasOverride&&<button onClick={clearOverride} style={{fontSize:11,color:"#f08080",background:"rgba(240,80,80,0.1)",border:"1px solid rgba(240,80,80,0.25)",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit"}}>Tilbakestill</button>}
-                    </div>
+              const standings=computeGroupStandings(currentGroup,results);
+              return <div style={{margin:"8px 0",padding:"8px 12px",background:"rgba(42,122,106,0.1)",border:"1px solid rgba(42,122,106,0.2)",borderRadius:8}}>
+                <div style={{fontSize:11,color:T.mint,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>Endelig plassering</div>
+                {standings.map((team,i)=>(
+                  <div key={team} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,padding:"2px 0",color:i<3?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.4)"}}>
+                    <FlagImg team={team} size={16}/>
+                    <span style={{fontWeight:i<3?700:400,flex:1}}>{i+1}. {team}</span>
+                    {i<3&&<span style={{color:T.mint,fontSize:11}}>{["videre","videre","beste taper"][i]}</span>}
                   </div>
-                  {/* Current ranking */}
-                  {active.map((team,i)=>(
-                    <div key={team} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,padding:"3px 0"}}>
-                      <FlagImg team={team} size={16}/>
-                      <span style={{fontWeight:i<3?700:400,color:i<3?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.4)",flex:1}}>{i+1}. {team}</span>
-                      {i<3&&<span style={{color:T.mint,fontSize:11}}>{["videre","videre","beste taper"][i]}</span>}
-                      {hasOverride&&<span style={{fontSize:10,color:T.gold}}>manuell</span>}
-                    </div>
-                  ))}
-                  {/* Override dropdowns */}
-                  <details style={{marginTop:10}}>
-                    <summary style={{fontSize:11,color:"rgba(255,255,255,0.4)",cursor:"pointer",userSelect:"none",letterSpacing:0.5}}>
-                      ⚙️ Overstyr rekkefølge ved tiebreak
-                    </summary>
-                    <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:8}}>
-                      {[0,1,2,3].map(pos=>{
-                        const posLabels=["1. plass","2. plass","3. plass","4. plass"];
-                        const cur=(hasOverride?GROUP_OVERRIDES[currentGroup]:computed)[pos]||"";
-                        return(
-                          <div key={pos} style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",width:70,flexShrink:0}}>{posLabels[pos]}</span>
-                            <select value={cur} onChange={e=>{
-                              const base=hasOverride?[...GROUP_OVERRIDES[currentGroup]]:[...computed];
-                              // Remove the chosen team from wherever it currently is
-                              const cleaned=base.map(t=>t===e.target.value?null:t);
-                              cleaned[pos]=e.target.value;
-                              // Fill nulls with remaining teams
-                              const used=new Set(cleaned.filter(Boolean));
-                              const remaining=teams.filter(t=>!used.has(t));
-                              let ri=0;
-                              const final=cleaned.map(t=>t||(remaining[ri++]||""));
-                              saveOverride(final);
-                            }} style={{flex:1,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,color:"#fff",fontSize:13,padding:"7px 10px",fontFamily:"inherit",outline:"none"}}>
-                              {teams.map(t=><option key={t} value={t}>{t}</option>)}
-                            </select>
-                          </div>
-                        );
-                      })}
-                      <p style={{fontSize:11,color:"rgba(255,255,255,0.3)",margin:"4px 0 0",fontStyle:"italic"}}>
-                        Beregnet: {computed.map(t=>t).join(" → ")}
-                      </p>
-                    </div>
-                  </details>
-                </div>
-              );
+                ))}
+              </div>;
             })()}
             <div style={{maxHeight:"52vh",overflowY:"auto",paddingRight:4}}>
               {GROUP_MATCHES.filter(m=>m.group===currentGroup).map(m=>{
                 const r=results[m.id]||{};
-                return (
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                    <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>
-                      <FlagImg team={m.home} size={14}/> {m.home} – {m.away} <FlagImg team={m.away} size={14}/>
-                    </span>
-                    <ScoreInput val={r.home??""} onChange={v=>saveResult(m.id,"home",v)}/>
-                    <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
-                    <ScoreInput val={r.away??""} onChange={v=>saveResult(m.id,"away",v)}/>
-                    {saving[m.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>✓</span>}
-                  </div>
-                );
+                return <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                  <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>
+                    <FlagImg team={m.home} size={14}/> {m.home} – {m.away} <FlagImg team={m.away} size={14}/>
+                  </span>
+                  <ScoreInput val={r.home??""} onChange={v=>saveResult(m.id,"home",v)}/>
+                  <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
+                  <ScoreInput val={r.away??""} onChange={v=>saveResult(m.id,"away",v)}/>
+                  {saving[m.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>✓</span>}
+                </div>;
               })}
             </div>
           </>
@@ -1641,156 +1034,68 @@ Regler:
 
         {tab==="knockout"&&(
           <div style={{maxHeight:"64vh",overflowY:"auto",paddingRight:4}}>
-            {(()=>{
-              let lp=null;
-              return KNOCKOUT_SLOTS.map(slot=>{
-                const show=slot.phase!==lp; if (show) lp=slot.phase;
-                const r=results[slot.id]||{};
-                return (
-                  <div key={slot.id}>
-                    {show&&<PhaseHeader phase={slot.phase}/>}
-                    {slot.thirdSlot?(()=>{
-                      // thirdSlot: one side is group winner, other is best-third (admin sets actual team)
-                      const thirdCode=slot.thirdSlot==="away"?slot.slot2:slot.slot1;
-                      const eligibleGroups=thirdCode.slice(1).split("");
-                      const thirdPlaceTeams=eligibleGroups.map(g=>{
-                        const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
-                        const team=computeGroupStandings(g,played>0?results:{})[2]||null;
-                        return team?{team,group:g}:null;
-                      }).filter(Boolean);
-                      const thirdField=slot.thirdSlot;
-                      const thirdVal=typeof results[slot.id+"_"+thirdField]==="string"?results[slot.id+"_"+thirdField]:"";
-                      const winnerSide=slot.thirdSlot==="away"?slot.slot1:slot.slot2;
-                      const winnerTeam=computeGroupStandings?
-                        (winnerSide.match(/^1([A-L])$/)&&(()=>{
-                          const g=winnerSide[1];
-                          const played=GROUP_MATCHES.filter(m=>m.group===g&&results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
-                          return played>0?computeGroupStandings(g,results)[0]:null;
-                        })())
-                        :null;
-                      const saveThird=async(v)=>{
-                        setResults(r=>({...r,[slot.id+"_"+thirdField]:v}));
-                        try{await sb.upsert("results",[{id:slot.id+"_"+thirdField,home:v,away:""}]);}catch(err){console.error(err);}
-                      };
-                      const FlagSelect=({value,onChange,placeholder})=>(
-                        <div style={{flex:"1 1 150px",position:"relative",display:"flex",alignItems:"center",gap:6,
-                          background:"rgba(255,255,255,0.07)",border:`1px solid ${value?"rgba(126,200,160,0.4)":"rgba(255,255,255,0.15)"}`,
-                          borderRadius:8,padding:"6px 10px"}}>
-                          {value?<><FlagImg team={value} size={16}/><span style={{fontSize:12,color:"#fff",fontWeight:600,flex:1}}>{value}</span></>
-                            :<span style={{fontSize:11,color:"rgba(255,255,255,0.35)",flex:1}}>{placeholder}</span>}
-                          <select value={value} onChange={e=>onChange(e.target.value)}
-                            style={{position:"absolute",inset:0,opacity:0,width:"100%",cursor:"pointer"}}>
-                            <option value="">{placeholder}</option>
-                            {thirdPlaceTeams.map(({team,group})=>(
-                              <option key={team} value={team}>Gruppe {group}: {team}</option>
-                            ))}
-                          </select>
-                          <span style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>v</span>
-                        </div>
-                      );
-                      return (
-                        <div style={{padding:"8px 4px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                          <div style={{fontSize:10,color:T.gold,marginBottom:6,fontWeight:700}}>
-                            {slot.label} — velg beste 3.-plass fra gruppe {eligibleGroups.join("/")}
-                          </div>
-                          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                            {slot.thirdSlot==="home"
-                              ?<><FlagSelect value={thirdVal} onChange={saveThird} placeholder={`Beste 3. (${eligibleGroups.join("/")})`}/></>
-                              :<div style={{flex:"1 1 150px",fontSize:12,color:"rgba(255,255,255,0.6)",padding:"6px 0",display:"flex",alignItems:"center",gap:6}}>
-                                {winnerTeam?<><FlagImg team={winnerTeam} size={16}/>{winnerTeam}</>:<span style={{color:"rgba(255,255,255,0.3)"}}>Gruppe {winnerSide[1]}-vinner</span>}
-                              </div>
-                            }
-                            <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
-                            <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
-                            <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
-                            {slot.thirdSlot==="away"
-                              ?<FlagSelect value={thirdVal} onChange={saveThird} placeholder={`Beste 3. (${eligibleGroups.join("/")})`}/>
-                              :<div style={{flex:"1 1 150px",fontSize:12,color:"rgba(255,255,255,0.6)",padding:"6px 0",display:"flex",alignItems:"center",gap:6}}>
-                                {winnerTeam?<><FlagImg team={winnerTeam} size={16}/>{winnerTeam}</>:<span style={{color:"rgba(255,255,255,0.3)"}}>Gruppe {winnerSide[1]}-vinner</span>}
-                              </div>
-                            }
-                            {saving[slot.id]&&<span style={{fontSize:11,color:T.mint}}>ok</span>}
-                          </div>
-                        </div>
-                      );
-                    })():(
-                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                      <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{slot.label}</span>
-                      <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
-                      <span style={{color:"rgba(255,255,255,0.25)"}}>-</span>
-                      <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
-                      {saving[slot.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>ok</span>}
-                    </div>
-                    )}
-                  </div>
-                );
-              });
-            })()}
+            {(()=>{let lp=null; return KNOCKOUT_SLOTS.map(slot=>{
+              const show=slot.phase!==lp; if(show) lp=slot.phase;
+              const r=results[slot.id]||{};
+              return <div key={slot.id}>
+                {show&&<PhaseHeader phase={slot.phase}/>}
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                  <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {slot.label}: {slot.home} vs {slot.away}
+                  </span>
+                  <ScoreInput val={r.home??""} onChange={v=>saveResult(slot.id,"home",v)}/>
+                  <span style={{color:"rgba(255,255,255,0.25)"}}>–</span>
+                  <ScoreInput val={r.away??""} onChange={v=>saveResult(slot.id,"away",v)}/>
+                  {saving[slot.id]&&<span style={{fontSize:11,color:T.mint,width:14}}>✓</span>}
+                </div>
+              </div>;
+            });})()}
           </div>
         )}
 
         {tab==="bonus"&&<BonusAdminPanel participants={participants} bonusResults={bonusResults} saveBonusResult={saveBonusResult}/>}
 
         {tab==="stats"&&(()=>{
-          const ranked=[...participants]
-            .map(p=>({...p,total:calcTotal(p,results,bonusResults)}))
-            .sort((a,b)=>b.total-a.total);
-          const medals=["\u{1F947}","\u{1F948}","\u{1F949}"];
+          const ranked=[...participants].map(p=>({...p,total:calcTotal(p,results,bonusResults)})).sort((a,b)=>b.total-a.total);
+          const played=GROUP_MATCHES.filter(m=>results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
+          const medals=["🥇","🥈","🥉"];
           const pg=["rgba(240,192,90,0.15)","rgba(192,192,192,0.1)","rgba(205,127,50,0.12)"];
           const pb=["rgba(240,192,90,0.35)","rgba(192,192,192,0.25)","rgba(205,127,50,0.25)"];
           const pc=["#f0c05a","#c0c0c0","#cd7f32"];
-          const played=GROUP_MATCHES.filter(m=>results[m.id]?.home!==undefined&&results[m.id]?.home!=="").length;
           const exportExcel=()=>{
             const rows=[["Plass","Navn","Poeng","Gruppekamper tippet"]];
-            ranked.forEach((p,i)=>{
-              const gt=GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length;
-              rows.push([i+1,p.name,p.total,gt]);
-            });
-            const csv=rows.map(r=>r.join("\t")).join("\n");
-            const blob=new Blob(["\uFEFF"+csv],{type:"text/tab-separated-values;charset=utf-8"});
+            ranked.forEach((p,i)=>{ const gt=GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length; rows.push([i+1,p.name,p.total,gt]); });
+            const blob=new Blob(["\uFEFF"+rows.map(r=>r.join("\t")).join("\n")],{type:"text/tab-separated-values;charset=utf-8"});
             const url=URL.createObjectURL(blob);
-            const a=document.createElement("a");
-            a.href=url;a.download="VM2026_Ledertavle.tsv";a.click();
-            URL.revokeObjectURL(url);
+            const a=document.createElement("a"); a.href=url; a.download="VM2026_Ledertavle.tsv"; a.click(); URL.revokeObjectURL(url);
           };
-          return (
-            <div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
-                {[
-                  ["Deltakere",participants.length],
-                  ["Gruppekamper",`${played}/${GROUP_MATCHES.length}`],
-                  ["Sluttspill",`${KNOCKOUT_SLOTS.filter(s=>results[s.id]?.home!==undefined&&results[s.id]?.home!=="").length}/${KNOCKOUT_SLOTS.length}`],
-                  ["Bonus satt",Object.keys(bonusResults).length],
-                ].map(([l,v])=>(
-                  <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px"}}>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{l}</div>
-                    <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>Ledertavle (kun admin)</div>
-                <button onClick={exportExcel} style={{padding:"7px 14px",borderRadius:8,border:"1px solid rgba(126,200,160,0.3)",background:"rgba(126,200,160,0.1)",color:T.mint,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>
-                  Eksporter til Excel
-                </button>
-              </div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:10}}>{played} av {GROUP_MATCHES.length} gruppekamper spilt</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"50vh",overflowY:"auto"}}>
-                {ranked.map((p,i)=>(
-                  <div key={p.name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,background:i<3?pg[i]:"rgba(255,255,255,0.03)",border:`1px solid ${i<3?pb[i]:"rgba(255,255,255,0.06)"}`}}>
-                    <span style={{fontSize:i<3?22:15,width:28,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:`${i+1}.`}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:15,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:1}}>
-                        {GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length}/{GROUP_MATCHES.length} kamper tippet
-                      </div>
-                    </div>
-                    <div style={{fontSize:20,fontWeight:800,color:i<3?pc[i]:"rgba(255,255,255,0.65)",flexShrink:0}}>{p.total}p</div>
-                  </div>
-                ))}
-              </div>
+          return <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+              {[["Deltakere",participants.length],[`Gruppekamper`,`${played}/${GROUP_MATCHES.length}`],[`Sluttspill`,`${KNOCKOUT_SLOTS.filter(s=>results[s.id]?.home!==undefined&&results[s.id]?.home!=="").length}/${KNOCKOUT_SLOTS.length}`],["Bonus",Object.keys(bonusResults).length]].map(([l,v])=>(
+                <div key={l} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px"}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>{l}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{v}</div>
+                </div>
+              ))}
             </div>
-          );
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>Ledertavle (kun admin)</div>
+              <button onClick={exportExcel} style={{padding:"7px 14px",borderRadius:8,border:"1px solid rgba(126,200,160,0.3)",background:"rgba(126,200,160,0.1)",color:T.mint,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>Eksporter til Excel</button>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:10}}>{played} av {GROUP_MATCHES.length} gruppekamper spilt</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"50vh",overflowY:"auto"}}>
+              {ranked.map((p,i)=>(
+                <div key={p.name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,background:i<3?pg[i]:"rgba(255,255,255,0.03)",border:`1px solid ${i<3?pb[i]:"rgba(255,255,255,0.06)"}`}}>
+                  <span style={{fontSize:i<3?22:15,width:28,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:`${i+1}.`}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:15,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:1}}>{GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length}/{GROUP_MATCHES.length} kamper</div>
+                  </div>
+                  <div style={{fontSize:20,fontWeight:800,color:i<3?pc[i]:"rgba(255,255,255,0.65)",flexShrink:0}}>{p.total}p</div>
+                </div>
+              ))}
+            </div>
+          </div>;
         })()}
       </div>
     </div>
@@ -1798,27 +1103,11 @@ Regler:
 }
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
-// NAV is now dynamic - computed in App based on login state
-
 export default function App() {
-  // Session state — persisted in sessionStorage so refresh keeps you logged in
-  const [session,setSession]=useState(()=>{
-    try{const s=sessionStorage.getItem("vm_session");return s?JSON.parse(s):null;}
-    catch{return null;}
-  });
+  const [session,setSession]=useState(()=>{ try{const s=sessionStorage.getItem("vm_session");return s?JSON.parse(s):null;}catch{return null;} });
   const loggedIn=!!session;
-
-  const login=(user)=>{
-    setSession(user);
-    try{sessionStorage.setItem("vm_session",JSON.stringify(user));}catch{}
-    setView("mytips");
-  };
-  const logout=()=>{
-    setSession(null);
-    try{sessionStorage.removeItem("vm_session");}catch{}
-    setView("register");
-  };
-
+  const login=(user)=>{ setSession(user); try{sessionStorage.setItem("vm_session",JSON.stringify(user));}catch{}; setView("mytips"); };
+  const logout=()=>{ setSession(null); try{sessionStorage.removeItem("vm_session");}catch{}; setView("register"); };
   const [view,setView]=useState(()=>session?"mytips":"register");
   const [participants,setParticipants]=useState([]);
   const [results,setResults]=useState({});
@@ -1828,36 +1117,19 @@ export default function App() {
 
   const loadData=useCallback(async()=>{
     try {
-      const [parts,res,bonus]=await Promise.all([
-        sb.getAll("participants"),
-        sb.getAll("results"),
-        sb.getAll("bonus_results"),
-      ]);
+      const [parts,res,bonus]=await Promise.all([sb.getAll("participants"),sb.getAll("results"),sb.getAll("bonus_results")]);
       setParticipants(parts.map(p=>({...p,tips:p.tips||{},bonus:p.bonus||{}})));
       const resMap={};
       res.forEach(r=>{
         if (r.id.startsWith("rank_")) return;
-        if (r.id.startsWith("override_")) {
-          const group=r.id.replace("override_","");
-          try { setGroupOverride(group, JSON.parse(r.home)); } catch{}
-          return;
-        }
-        // Team name entries for adminOnly slots (r32_13_home, r32_13_away)
-        if (r.id.endsWith("_home")||r.id.endsWith("_away")) {
-          resMap[r.id]=r.home; // store as plain string
-          return;
-        }
+        if (r.id.startsWith("override_")) { try{setGroupOverride(r.id.replace("override_",""),JSON.parse(r.home));}catch{} return; }
         resMap[r.id]={home:r.home,away:r.away};
       });
       setResults(resMap);
-      setBonusResults(Object.fromEntries(bonus.map(b=>{
-        let approved=[];
-        try{if(b.approved) approved=JSON.parse(b.approved);}catch{}
-        return [b.id,{answer:b.answer,approved}];
-      })));
+      setBonusResults(Object.fromEntries(bonus.map(b=>{ let approved=[]; try{if(b.approved)approved=JSON.parse(b.approved);}catch{} return[b.id,{answer:b.answer,approved}]; })));
       setDbError(false);
-    } catch(e){console.error(e);setDbError(true);}
-    finally{setLoading(false);}
+    } catch(e){ console.error(e); setDbError(true); }
+    finally{ setLoading(false); }
   },[]);
 
   useEffect(()=>{loadData();},[loadData]);
@@ -1877,34 +1149,24 @@ export default function App() {
             <div style={{fontSize:16,fontWeight:800,lineHeight:1.3}}>VM 2026 Tippekonkurranse</div>
           </div>
         </div>
-        <div>
-          {!loading&&!dbError&&<div style={{background:"rgba(240,192,90,0.1)",border:"1px solid rgba(240,192,90,0.22)",borderRadius:20,padding:"4px 14px",fontSize:12,color:T.gold,fontWeight:700}}>{participants.length} deltakere</div>}
-          {dbError&&<div style={{background:"rgba(180,40,40,0.18)",border:"1px solid rgba(200,60,60,0.3)",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#f08080",fontWeight:700}}>⚠️ DB-feil</div>}
-        </div>
+        {!loading&&!dbError&&<div style={{background:"rgba(240,192,90,0.1)",border:"1px solid rgba(240,192,90,0.22)",borderRadius:20,padding:"4px 14px",fontSize:12,color:T.gold,fontWeight:700}}>{participants.length} deltakere</div>}
+        {dbError&&<div style={{background:"rgba(180,40,40,0.18)",border:"1px solid rgba(200,60,60,0.3)",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#f08080",fontWeight:700}}>⚠️ DB-feil</div>}
       </div>
 
-      {/* Nav — dynamic based on login state */}
+      {/* Nav */}
       <div style={{position:"relative",zIndex:1,display:"flex",justifyContent:"center",gap:4,padding:"14px 12px 0",flexWrap:"wrap"}}>
         {[
           !loggedIn&&{id:"register",label:"📋 Registrer / Logg inn"},
-          loggedIn&&{id:"mytips",label:"📄 Mine tips"},
+          loggedIn&&{id:"mytips",   label:"📄 Mine tips"},
           {id:"rules",label:"📖 Regler"},
           {id:"admin",label:"⚙️ Admin"},
         ].filter(Boolean).map(n=>(
-          <button key={n.id} onClick={()=>setView(n.id)} style={{
-            padding:"9px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,transition:"all 0.16s",
+          <button key={n.id} onClick={()=>setView(n.id)} style={{padding:"9px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,transition:"all 0.16s",
             background:view===n.id?`linear-gradient(135deg,${T.teal},#1a5a4a)`:"rgba(255,255,255,0.06)",
             color:view===n.id?"#fff":"rgba(255,255,255,0.45)",
-            boxShadow:view===n.id?"0 2px 14px rgba(42,122,106,0.45)":"none",
-          }}>{n.label}</button>
+            boxShadow:view===n.id?"0 2px 14px rgba(42,122,106,0.45)":"none"}}>{n.label}</button>
         ))}
-        {loggedIn&&(
-          <button onClick={logout} style={{
-            padding:"9px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",
-            fontFamily:"inherit",fontSize:13,fontWeight:700,
-            background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)",
-          }}>Logg ut</button>
-        )}
+        {loggedIn&&<button onClick={logout} style={{padding:"9px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,background:"rgba(255,255,255,0.04)",color:"rgba(255,255,255,0.4)"}}>Logg ut</button>}
       </div>
 
       {/* Content */}
@@ -1918,15 +1180,15 @@ export default function App() {
           <div style={{...cardCss,textAlign:"center"}}>
             <div style={{fontSize:40,marginBottom:12}}>⚠️</div>
             <h2 style={{color:"#fff",margin:"0 0 8px"}}>Ikke koblet til database</h2>
-            <p style={{color:T.muted}}>Sjekk SUPABASE_URL og SUPABASE_ANON_KEY i App.jsx</p>
+            <p style={{color:T.muted}}>Sjekk SUPABASE_URL og SUPABASE_ANON_KEY</p>
           </div>
         ):(
           <>
-            {view==="register"   &&<RegisterView   onRegister={login} externalResults={results} session={session}/>}
-            {view==="mytips"     &&loggedIn&&<MyTipsView session={session} participants={participants} results={results} bonusResults={bonusResults} onEditTips={()=>setView("register")}/>}
-            {view==="mytips"     &&!loggedIn&&<div style={{...cardCss,textAlign:"center"}}><p style={{color:T.muted}}>Logg inn for å se dine tips.</p><Btn onClick={()=>setView("register")}>Logg inn</Btn></div>}
-            {view==="rules"      &&<RulesView/>}
-            {view==="admin"      &&<AdminView       results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
+            {view==="register"&&<RegisterView onLogin={login} externalResults={results} session={session}/>}
+            {view==="mytips"&&loggedIn&&<MyTipsView session={session} participants={participants} results={results} bonusResults={bonusResults} onEditTips={()=>setView("register")}/>}
+            {view==="mytips"&&!loggedIn&&<div style={{...cardCss,textAlign:"center"}}><p style={{color:T.muted}}>Logg inn for å se dine tips.</p><Btn onClick={()=>setView("register")}>Logg inn</Btn></div>}
+            {view==="rules"&&<RulesView/>}
+            {view==="admin"&&<AdminView results={results} setResults={setResults} bonusResults={bonusResults} setBonusResults={setBonusResults} participants={participants} reload={loadData}/>}
           </>
         )}
       </div>
