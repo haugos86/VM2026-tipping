@@ -116,29 +116,29 @@ const KNOCKOUT_SLOTS = [
 ];
 
 const BONUS_QUESTIONS = [
-  {id:"b1", text:"Hvem vinner VM?",                     icon:"🏆", type:"text",   points:10},
-  {id:"b2", text:"Hvem blir toppscorer?",                icon:"⚽", type:"text",   points:8},
-  {id:"b3", text:"Hvem blir nummer 2? (finaletaper)",    icon:"🥈", type:"text",   points:8},
-  {id:"b4", text:"Hvem blir nummer 3? (bronsefinale)",   icon:"🥉", type:"text",   points:6},
-  {id:"b5", text:"Hvem blir nummer 4? (bronsefinale)",   icon:"4️⃣", type:"text",   points:5},
-  {id:"b6", text:"Hvor langt går Norge?",                icon:"🇳🇴", type:"select", points:7,
+  {id:"b1", text:"Hvem vinner VM?",                     icon:"🏆", type:"text",   points:25},
+  {id:"b2", text:"Hvem blir toppscorer?",                icon:"⚽", type:"text",   points:20},
+  {id:"b3", text:"Hvem blir nummer 2? (finaletaper)",    icon:"🥈", type:"text",   points:18},
+  {id:"b4", text:"Hvem blir nummer 3? (bronsefinale)",   icon:"🥉", type:"text",   points:15},
+  {id:"b5", text:"Hvem blir nummer 4? (bronsefinale)",   icon:"4️⃣", type:"text",   points:12},
+  {id:"b6", text:"Hvor langt går Norge?",                icon:"🇳🇴", type:"select", points:15,
     options:["Gruppespill (ut)","16-delsfinale","Åttendelsfinale","Kvartfinale","Semifinale","Bronsefinale","Finale (topp 2)"]},
-  {id:"b7", text:"Hvem scorer flest mål for Norge?",     icon:"🇳🇴", type:"text",   points:6},
-  {id:"b8", text:"Hvilken gruppe blir det scoret flest mål?", icon:"📊", type:"select", points:5,
+  {id:"b7", text:"Hvem scorer flest mål for Norge?",     icon:"🇳🇴", type:"text",   points:12},
+  {id:"b8", text:"Hvilken gruppe blir det scoret flest mål?", icon:"📊", type:"select", points:10,
     options:["A","B","C","D","E","F","G","H","I","J","K","L"]},
-  {id:"b9", text:"Antall røde kort i turneringen?",      icon:"🟥", type:"number", points:4},
-  {id:"b10",text:"Antall mål Norge scorer totalt?",      icon:"⚽", type:"number", points:4},
+  {id:"b9", text:"Antall røde kort i turneringen?",      icon:"🟥", type:"number", points:8},
+  {id:"b10",text:"Antall mål Norge scorer totalt?",      icon:"⚽", type:"number", points:8},
 ];
 
-// Points — simplified: no advance points
+// Points — Alt B: sluttspill vektet ned, bonus vektet opp
 const PTS = {
   group: {exact:3,outcome:1},
-  R32:   {exact:3,outcome:1},
-  R16:   {exact:4,outcome:2},
-  QF:    {exact:5,outcome:2},
-  SF:    {exact:6,outcome:3},
-  "3P":  {exact:4,outcome:2},
-  F:     {exact:8,outcome:4},
+  R32:   {exact:1,outcome:1},
+  R16:   {exact:2,outcome:1},
+  QF:    {exact:2,outcome:1},
+  SF:    {exact:3,outcome:1},
+  "3P":  {exact:2,outcome:1},
+  F:     {exact:4,outcome:2},
   groupRank:{first:4,second:3,third:2},
 };
 
@@ -853,8 +853,19 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
 function RulesView() {
   const sections=[
     {title:"⚽ Gruppespill (72 kamper)",rows:[["Eksakt resultat","3p"],["Riktig utfall (seier/uavgjort)","1p"],["Riktig lag på 1. plass","4p"],["Riktig lag på 2. plass","3p"],["Riktig lag på 3. plass (beste taper)","2p"]]},
-    {title:"🏆 Sluttspill — alle runder kan tippes",rows:[["16-delsfinale — eksakt / riktig utfall","3p / 1p"],["Åttendelsfinale — eksakt / riktig utfall","4p / 2p"],["Kvartfinale — eksakt / riktig utfall","5p / 2p"],["Semifinale — eksakt / riktig utfall","6p / 3p"],["Bronsefinale — eksakt / riktig utfall","4p / 2p"],["Finale — eksakt / riktig utfall","8p / 4p"]]},
-    {title:"🎁 Bonusspørsmål (kun eksakt svar)",rows:[["Hvem vinner VM?","10p"],["Hvem blir toppscorer?","8p"],["Antall røde kort?","6p"],["Antall mål totalt?","6p"],["Antall mål Norge scorer?","5p"]]},
+    {title:"🏆 Sluttspill — alle runder kan tippes",rows:[["16-delsfinale — eksakt / riktig utfall","1p / 1p"],["Åttendelsfinale — eksakt / riktig utfall","2p / 1p"],["Kvartfinale — eksakt / riktig utfall","2p / 1p"],["Semifinale — eksakt / riktig utfall","3p / 1p"],["Bronsefinale — eksakt / riktig utfall","2p / 1p"],["Finale — eksakt / riktig utfall","4p / 2p"]]},
+    {title:"🎁 Bonusspørsmål (kun eksakt svar)",rows:[
+      ["🏆 Hvem vinner VM?","25p"],
+      ["⚽ Hvem blir toppscorer?","20p"],
+      ["🥈 Hvem blir nummer 2? (finaletaper)","18p"],
+      ["🥉 Hvem blir nummer 3? (bronsefinale)","15p"],
+      ["4️⃣ Hvem blir nummer 4? (bronsefinale)","12p"],
+      ["🇳🇴 Hvor langt går Norge?","15p"],
+      ["🇳🇴 Hvem scorer flest mål for Norge?","12p"],
+      ["📊 Hvilken gruppe flest mål?","10p"],
+      ["🟥 Antall røde kort i turneringen?","8p"],
+      ["⚽ Antall mål Norge scorer totalt?","8p"],
+    ]},
   ];
   return (
     <div style={{maxWidth:740,margin:"0 auto"}}>
