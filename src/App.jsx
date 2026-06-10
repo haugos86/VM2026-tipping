@@ -890,7 +890,8 @@ function RulesView() {
           <ul style={{color:"rgba(255,255,255,0.6)",fontSize:13,margin:0,paddingLeft:18,lineHeight:1.9}}>
             <li>Tipping stenger 11. juni 2026 kl. 20:00 — åpningskampen starter</li>
             <li>Sluttspillet tippes med slot-koder: 1A = vinner gruppe A, 2B = nr.2 gruppe B osv.</li>
-            <li>I sluttspillet er det alltid en vinner — 1-1 betyr hjemmelaget vinner (straffer)</li>
+            <li>Sluttspillet tippes etter 90 minutter — 1-1 er gyldig og gir 1p for riktig utfall</li>
+            <li>Poeng gis for resultatet etter 90 min, ikke etter ekstraomganger eller straffespark</li>
             <li>Grupperanking-poeng gis kun når alle 6 kamper i gruppen er spilt</li>
             <li>Bonusspørsmål: kun eksakt svar gir poeng — admin godkjenner varianter</li>
             <li>Ved poenglikhet avgjøres plasseringen av flest eksakte resultater</li>
@@ -1127,11 +1128,18 @@ function AdminView({results,setResults,bonusResults,setBonusResults,participants
           const pb=["rgba(240,192,90,0.35)","rgba(192,192,192,0.25)","rgba(205,127,50,0.25)"];
           const pc=["#f0c05a","#c0c0c0","#cd7f32"];
           const exportExcel=()=>{
-            const rows=[["Plass","Navn","Poeng","Gruppekamper tippet"]];
-            ranked.forEach((p,i)=>{ const gt=GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length; rows.push([i+1,p.name,p.total,gt]); });
-            const blob=new Blob(["\uFEFF"+rows.map(r=>r.join("\t")).join("\n")],{type:"text/tab-separated-values;charset=utf-8"});
+            const rows=[["Plass","Navn","Poeng","Gruppekamper","Sluttspill","Bonus besvart"]];
+            ranked.forEach((p,i)=>{
+              const gt=GROUP_MATCHES.filter(m=>p.tips?.[m.id]?.home!==undefined&&p.tips[m.id].home!=="").length;
+              const kt=KNOCKOUT_SLOTS.filter(s=>p.tips?.[s.id]?.home!==undefined&&p.tips[s.id].home!=="").length;
+              const bt=BONUS_QUESTIONS.filter(q=>p.bonus?.[q.id]!==undefined&&String(p.bonus[q.id]).trim()!=="").length;
+              rows.push([i+1,p.name,p.total,`${gt}/${GROUP_MATCHES.length}`,`${kt}/${KNOCKOUT_SLOTS.length}`,`${bt}/${BONUS_QUESTIONS.length}`]);
+            });
+            const xmlRows=rows.map(r=>`<Row>${r.map(v=>`<Cell><Data ss:Type="${typeof v==="number"?"Number":"String"}">${String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;")}</Data></Cell>`).join("")}</Row>`).join("");
+            const xml=`<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Ledertavle"><Table>${xmlRows}</Table></Worksheet></Workbook>`;
+            const blob=new Blob([xml],{type:"application/vnd.ms-excel;charset=utf-8"});
             const url=URL.createObjectURL(blob);
-            const a=document.createElement("a"); a.href=url; a.download="VM2026_Ledertavle.tsv"; a.click(); URL.revokeObjectURL(url);
+            const a=document.createElement("a"); a.href=url; a.download="VM2026_Ledertavle.xls"; a.click(); URL.revokeObjectURL(url);
           };
           return <div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
