@@ -649,7 +649,7 @@ Regler:
             <span style={{fontSize:12,color:autoSaveState==="error"?"#f08080":autoSaveState==="saving"?T.mint:"rgba(255,255,255,0.25)"}}>
               {autoSaveState==="error"?"⚠️ Lagring feilet":autoSaveState==="saving"?"💾 Lagrer...":"✓ Lagret"}
             </span>
-            {!isLocked&&<button onClick={doAutoFill} disabled={autoFilling||autofillRemaining===0} style={{
+            <button onClick={doAutoFill} disabled={autoFilling||autofillRemaining===0} style={{
               padding:"5px 10px",borderRadius:7,border:`1px solid ${autofillRemaining===0?"rgba(255,255,255,0.1)":"rgba(240,192,90,0.35)"}`,
               cursor:autoFilling||autofillRemaining===0?"not-allowed":"pointer",fontFamily:"inherit",
               fontSize:10,fontWeight:700,
@@ -657,7 +657,7 @@ Regler:
               color:autofillRemaining===0?"rgba(255,255,255,0.25)":T.gold,
             }}>
               {autoFilling?"⚽ Fyller ut alle kamper...":autofillRemaining===0?"🔒 Ingen forsøk":autoFillCount>0?`🎲 Prøv igjen (${autofillRemaining} igjen)`:"🎲 Fyll ut hele kupongen"}
-            </button>}
+            </button>
           </div>
         </div>
 
@@ -811,7 +811,7 @@ function MyTipsView({session,participants,results,bonusResults,onEditTips}) {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontSize:28,fontWeight:800,color:T.gold}}>{total}p</div>
-          {new Date()<DEADLINE&&onEditTips&&<button onClick={onEditTips} style={{padding:"8px 14px",borderRadius:8,border:"1px solid rgba(240,192,90,0.4)",background:"rgba(240,192,90,0.1)",color:T.gold,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>✏️ Endre tips</button>}
+          {onEditTips&&<button onClick={onEditTips} style={{padding:"8px 14px",borderRadius:8,border:"1px solid rgba(240,192,90,0.4)",background:"rgba(240,192,90,0.1)",color:T.gold,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>✏️ Endre tips</button>}
         </div>
       </div>
       <div style={cardCss}>
