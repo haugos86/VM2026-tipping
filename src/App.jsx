@@ -161,6 +161,7 @@ const sb = {
   getAll:       t=>sb.query(t,"GET",null,"?select=*"),
   upsert:       (t,b)=>sb.query(t,"POST",b,"?on_conflict=id"),
   upsertByName: (t,b)=>sb.query(t,"POST",b,"?on_conflict=name"),
+  insert:       (t,b)=>sb.query(t,"POST",b,""),
 };
 
 // ── SCORING ───────────────────────────────────────────────────────────────────
@@ -526,7 +527,9 @@ Regler:
       const ex=await sb.query("participants","GET",null,`?name=eq.${encodeURIComponent(cleanName)}&select=name`);
       if (ex.length>0){setError("Navn allerede i bruk — logg inn i stedet.");return;}
       const u={name:cleanName,pin_hash:ph,tips:{},bonus:{}};
-      await sb.upsertByName("participants",[u]);
+      // Plain insert (not upsert) — avoids RLS evaluating the UPDATE policy
+      // for ON CONFLICT, which would block new registrations after deadline
+      await sb.insert("participants",[u]);
       setCurrentUser(u); setTips({}); setBonus({}); setReady(true);
       onLogin(u); setMode("editing");
     } catch(e){setError("Feil: "+e.message);}
