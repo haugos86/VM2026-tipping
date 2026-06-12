@@ -518,7 +518,9 @@ Regler:
   };
 
   const doRegister=async()=>{
-    if (isLocked){setError("Tipping er stengt.");return;}
+    // Ny registrering blokkeres av databasens INSERT-policy hvis stengt — ikke her i klienten,
+    // slik at admin kan åpne for etternølere uten å endre denne koden.
+    setError("");
     const cleanName=normalizeName(name);
     if (!cleanName||pin.length<4||pin!==pinConfirm) return;
     setSaving(true); setError("");
