@@ -173,12 +173,20 @@ function scoreMatch(tip,result,phase) {
   const [th,ta,rh,ra]=[tip.home,tip.away,result.home,result.away].map(Number);
   if ([th,ta,rh,ra].some(isNaN)) return null;
   const cfg = PTS[phase]||PTS.group;
-  if (th===rh&&ta===ra) return cfg.exact;
-  // Knockout: draw = home wins (pens) — outcome only H or A
-  const tipOut  = phase==="group"?matchOutcome(th,ta):(th>=ta?"H":"A");
-  const realOut = phase==="group"?matchOutcome(rh,ra):(rh>=ra?"H":"A");
-  if (tipOut===realOut) return cfg.outcome;
-  return 0;
+
+  if (phase==="group") {
+    // Gruppespill: enten/eller — eksakt ELLER utfall (uendret logikk)
+    if (th===rh&&ta===ra) return cfg.exact;
+    if (matchOutcome(th,ta)===matchOutcome(rh,ra)) return cfg.outcome;
+    return 0;
+  }
+
+  // Sluttspill: uavgjort (U) er et gyldig utfall — tre kategorier H/A/D.
+  // Additivt: riktig utfall gir utfallspoeng, eksakt treff gir utfallspoeng + eksaktbonus.
+  let pts=0;
+  if (matchOutcome(th,ta)===matchOutcome(rh,ra)) pts+=cfg.outcome;
+  if (th===rh&&ta===ra) pts+=cfg.exact;
+  return pts;
 }
 
 function computeGroupStandings(groupId,src) {
